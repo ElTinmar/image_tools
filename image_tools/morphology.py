@@ -123,7 +123,7 @@ def bwareaopen_props(
         ar: NDArray, 
         min_size: int = 64, 
         connectivity: int = 1
-    ) -> List:
+    ) -> List[_RegionProperties]:
 
     props = properties(ar, connectivity)
     return [blob for blob in props if blob.area > min_size]
@@ -162,7 +162,7 @@ def bwareafilter_centroids_cv2(
         min_width: Optional[int] = None,
         max_width: Optional[int] = None,
         connectivity: int = 4
-    ):
+    ) -> NDArray:
     # note that width and length are not treated equivalently to bwareafilter_centroids
     # here it is the width and height of the bounding box instead of minor and major axis
     # TODO handle None
