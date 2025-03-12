@@ -6,7 +6,7 @@ from skimage.measure import regionprops
 from skimage.measure._regionprops import _RegionProperties
 import cv2
 from dataclasses import dataclass
-from sklearn.decomposition import PCA
+from geometry import pca
 
 
 # those are essentially stripped down versions of 
@@ -198,9 +198,8 @@ class RegionPropsLike:
         if (coords_xy.shape[0] <= 1) or np.any(np.var(coords_xy, axis=0) == 0):
             return None
 
-        pca = PCA()
-        scores = pca.fit_transform(coords_xy) 
-        principal_axis = pca.components_[0,:]
+        components = pca(coords_xy) 
+        principal_axis = components[0,:]
 
         # Resolve 180 deg ambiguity by aligning with up direction
         if principal_axis @ up < 0:
