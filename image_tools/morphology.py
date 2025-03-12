@@ -198,7 +198,7 @@ class RegionPropsLike:
         if (coords_xy.shape[0] <= 1) or np.any(np.var(coords_xy, axis=0) == 0):
             return None
 
-        components = pca(coords_xy) 
+        components, _ = pca(coords_xy) 
         principal_axis = components[:,0]
 
         # Resolve 180 deg ambiguity by aligning with up direction
