@@ -199,7 +199,7 @@ class RegionPropsLike:
             return None
 
         components = pca(coords_xy) 
-        principal_axis = components[0,:]
+        principal_axis = components[:,0]
 
         # Resolve 180 deg ambiguity by aligning with up direction
         if principal_axis @ up < 0:
