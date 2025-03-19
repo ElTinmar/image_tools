@@ -79,13 +79,12 @@ def im2uint8(input_image: NDArray) -> NDArray:
             input_image, 
             255.0 / np.iinfo(input_image.dtype).max, 
             out=out, 
-            dtype=np.uint8,
             casting='unsafe'
         )
         return out
 
     if np.issubdtype(input_image.dtype, np.floating):
-        np.multiply(input_image, 255.0, out=out, dtype=np.uint8, casting='unsafe')
+        np.multiply(input_image, 255.0, out=out, casting='unsafe')
         return out
 
     if input_image.dtype == np.bool_:
