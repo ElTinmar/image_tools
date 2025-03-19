@@ -7,25 +7,19 @@ def im2single(input_image: NDArray) -> NDArray:
     Note that this is slow for large images
     """
 
+    if input_image.dtype == np.float32:
+        return input_image    
+    
     if np.issubdtype(input_image.dtype, np.integer):
         # if integer type, transform to float and scale between 0 and 1
-        ui_info = np.iinfo(input_image.dtype)
-        single_image = input_image.astype(np.float32) / ui_info.max
+        out = np.empty_like(input_image, dtype=np.float32)
+        np.divide(input_image, np.iinfo(input_image.dtype).max, out=out, dtype=np.float32)
+        return out
 
-    elif np.issubdtype(input_image.dtype, np.floating):
-        # if already a floating type, convert to single precision
-        if input_image.dtype == np.float32:
-            return input_image
-        
-        single_image = input_image.astype(np.float32)
+    if np.issubdtype(input_image.dtype, np.floating) or np.issubdtype(input_image.dtype, np.bool_):
+        return input_image.astype(np.float32)
 
-    elif input_image.dtype == np.bool_:
-        single_image = input_image.astype(np.float32)
-
-    else:
-        raise ValueError('wrong image type, cannot convert to single')
-
-    return single_image
+    raise ValueError('wrong image type, cannot convert to single')
 
 def im2double(input_image: NDArray) -> NDArray:
     """
@@ -55,24 +49,31 @@ def im2double(input_image: NDArray) -> NDArray:
 def im2uint8(input_image: NDArray) -> NDArray:
     '''Convert image to uint8. Note that this is slow for large images'''
     
+    if input_image.dtype == np.uint8:
+        return input_image   
+
+    out = np.empty_like(input_image, dtype=np.uint8)
+
     if np.issubdtype(input_image.dtype, np.integer):
-        if input_image.dtype == np.uint8:
-            return input_image
-        
-        ui_info = np.iinfo(input_image.dtype)
-        uint8_image = (input_image *  255.0/ui_info.max).astype(np.uint8)
+        np.multiply(
+            input_image, 
+            255.0 / np.iinfo(input_image.dtype).max, 
+            out=out, 
+            dtype=np.uint8,
+            casting='unsafe'
+        )
+        return out
 
-    elif np.issubdtype(input_image.dtype, np.floating):
-        uint8_image = (input_image *  255.0).astype(np.uint8)
+    if np.issubdtype(input_image.dtype, np.floating):
+        np.multiply(input_image, 255.0, out=out, dtype=np.uint8, casting='unsafe')
+        return out
 
-    elif input_image.dtype == np.bool_:
-        uint8_image = 255 * input_image.astype(np.uint8) 
+    if input_image.dtype == np.bool_:
+        np.multiply(input_image, 255, out=out, dtype=np.uint8)
+        return out
 
-    else:
-        raise ValueError('wrong image type, cannot convert to uint8')
+    raise ValueError('wrong image type, cannot convert to uint8')
 
-    return uint8_image
-   
 def rgb2gray(input_image: NDArray) -> NDArray:
     """
     Transform color input into grayscale by taking only the first channel
@@ -92,7 +93,7 @@ def rgb2gray(input_image: NDArray) -> NDArray:
     
     if len(shp) >= 3:
         # M x N X C
-        return np.dot(input_image[...,:3], [0.2990, 0.5870, 0.1140])
+        return np.dot(input_image[...,:3], np.array([0.2990, 0.5870, 0.1140], dtype=np.float32))
     
     else:
         raise ValueError('wrong image type, cannot convert to grayscale')

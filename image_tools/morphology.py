@@ -8,7 +8,6 @@ import cv2
 from dataclasses import dataclass
 from geometry import pca
 
-
 # those are essentially stripped down versions of 
 # skimage.morphology.remove_small_objects
 
