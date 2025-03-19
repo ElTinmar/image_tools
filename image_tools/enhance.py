@@ -1,13 +1,8 @@
 from numpy.typing import NDArray
 import numpy as np
 from typing import Optional
-from scipy.signal import medfilt2d
 import cv2
 from .convert import im2single
-
-
-# TODO this appears to be mostly single-threaded, profile it
-# NOTE median filter becomes prohibitively slow as kernel size increases
 
 def enhance(
         image: NDArray, 
@@ -27,18 +22,20 @@ def enhance(
     output = im2single(image)
 
     # brightness, contrast, gamma
-    output = contrast*(output**gamma)+brightness
+    np.power(output, gamma, out=output)
+    np.multiply(output, contrast, out=output)
+    np.add(output, brightness, out=output)
     
     # clip between 0 and 1
     np.clip(output, 0, 1, out=output)
 
     # blur
     if (blur_size_px is not None) and (blur_size_px > 0):
-        output = cv2.boxFilter(output, -1, (blur_size_px, blur_size_px))
+        cv2.boxFilter(output, -1, (blur_size_px, blur_size_px), dst=output)
 
     # median filter
     if (medfilt_size_px is not None) and (medfilt_size_px > 0):
-        medfilt_size_px = medfilt_size_px + int(medfilt_size_px % 2 == 0)
-        output = medfilt2d(output, kernel_size = medfilt_size_px)
+        medfilt_size_px |= 1  # Ensure it's odd
+        cv2.medianBlur(output, medfilt_size_px, dst=output)
 
     return output
