@@ -1,6 +1,24 @@
 import numpy as np
 import pytest
-from image_tools.convert import im2single, im2uint8
+from image_tools.convert import im2single, im2uint8, im2half
+
+@pytest.mark.benchmark
+def test_uint8_to_float16_benchmark(benchmark):
+    img = np.random.randint(0, 256, (1080, 1920, 3), dtype=np.uint8)  # Simulate a large image
+    result = benchmark(im2half, img)
+    assert result.shape == img.shape  # Ensure the function is correct
+
+@pytest.mark.benchmark
+def test_float16_to_float16_benchmark(benchmark):
+    img = np.random.random((1080, 1920, 3)).astype(np.float16)  # Simulate a large image
+    result = benchmark(im2half, img)
+    assert result.shape == img.shape  # Ensure the function is correct
+
+@pytest.mark.benchmark
+def test_float32_to_float16_benchmark(benchmark):
+    img = np.random.random((1080, 1920, 3)).astype(np.float32)  # Simulate a large image
+    result = benchmark(im2half, img)
+    assert result.shape == img.shape  # Ensure the function is correct
 
 @pytest.mark.benchmark
 def test_uint8_to_float32_benchmark(benchmark):
@@ -13,7 +31,6 @@ def test_float32_to_float32_benchmark(benchmark):
     img = np.random.random((1080, 1920, 3)).astype(np.float32)  # Simulate a large image
     result = benchmark(im2single, img)
     assert result.shape == img.shape  # Ensure the function is correct
-
 
 @pytest.mark.benchmark
 def test_float64_to_float32_benchmark(benchmark):

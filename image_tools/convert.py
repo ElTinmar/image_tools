@@ -1,6 +1,26 @@
 import numpy as np
 from numpy.typing import NDArray
 
+def im2half(input_image: NDArray) -> NDArray:
+    """
+    Transform input image into a float16 precision floating point image.
+    Note that this is slow for large images
+    """
+
+    if input_image.dtype == np.float16:
+        return input_image    
+    
+    if np.issubdtype(input_image.dtype, np.integer):
+        # if integer type, transform to float and scale between 0 and 1
+        out = np.empty_like(input_image, dtype=np.float16)
+        np.divide(input_image, np.iinfo(input_image.dtype).max, out=out)
+        return out
+
+    if np.issubdtype(input_image.dtype, np.floating) or np.issubdtype(input_image.dtype, np.bool_):
+        return input_image.astype(np.float16)
+
+    raise ValueError('wrong image type, cannot convert to single')
+
 def im2single(input_image: NDArray) -> NDArray:
     """
     Transform input image into a single precision floating point image.
