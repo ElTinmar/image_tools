@@ -224,6 +224,7 @@ def bwareafilter_props_cv2(
         ltype = cv2.CV_16U
     )
     kept_blobs = []
+    print(ar.shape, n_components)
     for c in range(1,n_components):
         w = stats[c, cv2.CC_STAT_WIDTH]
         h = stats[c, cv2.CC_STAT_HEIGHT]
