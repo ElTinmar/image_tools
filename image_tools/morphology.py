@@ -160,7 +160,7 @@ def bwareafilter_centroids_cv2(
         max_length: Optional[int] = None,
         min_width: Optional[int] = None,
         max_width: Optional[int] = None,
-        connectivity: int = 4
+        connectivity: int = 8
     ) -> NDArray:
     # note that width and length are not treated equivalently to bwareafilter_centroids
     # here it is the width and height of the bounding box instead of minor and major axis
@@ -214,7 +214,7 @@ def bwareafilter_props_cv2(
         max_length: Optional[int] = None,
         min_width: Optional[int] = None,
         max_width: Optional[int] = None,
-        connectivity: int = 4
+        connectivity: int = 8
     ) -> List[RegionPropsLike]:
     # return list of blobs, where blobs have centroid and coords
 
@@ -244,7 +244,7 @@ def bwareafilter_cv2(
         ar: cv2.UMat,
         min_size: int = 64, 
         max_size: int = 256, 
-        connectivity: int = 4
+        connectivity: int = 8
         ) -> NDArray:
     
     n_components, labels, stats, centroids = cv2.connectedComponentsWithStats(
