@@ -4,7 +4,7 @@ setup(
     name='image_tools',
     python_requires='>=3.8',
     author='Martin Privat',
-    version='0.7.15',
+    version='0.7.16',
     packages=['image_tools','image_tools.tests'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='image processing functions',
