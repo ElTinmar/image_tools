@@ -10,7 +10,8 @@ def enhance(
         gamma: float = 1.0,
         brightness: float = 0.0, 
         blur_size_px: Optional[int] = None, 
-        medfilt_size_px: Optional[int] = None
+        medfilt_size_px: Optional[int] = None,
+        clip: bool = True 
     ) -> NDArray:
 
     if gamma <= 0:
@@ -26,9 +27,6 @@ def enhance(
     np.multiply(output, contrast, out=output)
     np.add(output, brightness, out=output)
     
-    # clip between 0 and 1
-    np.clip(output, 0, 1, out=output)
-
     # blur
     if (blur_size_px is not None) and (blur_size_px > 0):
         cv2.boxFilter(output, -1, (blur_size_px, blur_size_px), dst=output)
@@ -37,5 +35,9 @@ def enhance(
     if (medfilt_size_px is not None) and (medfilt_size_px > 0):
         medfilt_size_px |= 1  # Ensure it's odd
         cv2.medianBlur(output, medfilt_size_px, dst=output)
+
+    # clip between 0 and 1
+    if clip:
+        np.clip(output, 0, 1, out=output)
 
     return output
