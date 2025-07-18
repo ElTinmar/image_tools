@@ -305,11 +305,11 @@ def filter_contours(
         bbox_center = np.array([cx, cy], dtype=np.float32)
         M = cv2.moments(cnt)
         mass_center = np.array([M["m10"]/M["m00"], M["m01"]/M["m00"]], dtype=np.float32)        
-        direction = mass_center - bbox_center
+        mass_imbalance_vector = mass_center - bbox_center # points towards the 'head'
         
         theta = np.deg2rad(angle)
         axis_vector = np.array([np.cos(theta), np.sin(theta)], dtype=np.float32)
-        if np.dot(direction, axis_vector) < 0:
+        if np.dot(mass_imbalance_vector, axis_vector) < 0:
             angle = (angle + 180) % 360  
             axis_vector = -axis_vector
 
@@ -318,7 +318,7 @@ def filter_contours(
 
         blobs.append(
             Blob(
-                centroid = np.array((cx,cy), dtype=np.float32),
+                centroid = mass_center,
                 axes = axes,
                 width = width,
                 height = height,
