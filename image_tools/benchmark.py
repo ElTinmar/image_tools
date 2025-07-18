@@ -11,13 +11,13 @@ from .morphology import (
 )
 
 # Parameters
-sizes = 2**np.arange(5,12)
+sizes = 2**np.arange(4,12)
 
 for sz in sizes:
 
     image_size = (sz, sz)
     ellipse_center = (sz//4, sz//6)
-    axes_length = (sz//12, sz//20) 
+    axes_length = (sz//10, sz//14) 
     ellipse_angle = 30
     repeats = 500
     
@@ -49,7 +49,7 @@ for sz in sizes:
     avg_time_fc = (end_fc - start_fc) / repeats
 
     # --- Results ---
-    print(f"Average time over {repeats} runs:")
+    print(f"{sz} Average time over {repeats} runs:")
     print(f"  cv2.connectedComponentsWithStats: {avg_time_cc * 1e3:.3f} ms")
     print(f"  cv2.floodFill:                    {avg_time_ff * 1e3:.3f} ms, speedup: {avg_time_cc/avg_time_ff:.2f} X")
     print(f"  cv2.findContours:                 {avg_time_fc * 1e3:.3f} ms, speedup: {avg_time_cc/avg_time_fc:.2f} X")
