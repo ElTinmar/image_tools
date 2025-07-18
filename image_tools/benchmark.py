@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import time
-from .morphology import filter_contours, bwareafilter_props_cv2
+from .morphology import filter_contours, filter_contours_centroids, bwareafilter_props_cv2
 
 # Parameters
 sizes = 2**np.arange(5,12)
