@@ -197,7 +197,7 @@ class RegionPropsLike:
         if (coords_xy.shape[0] <= 1) or np.any(np.var(coords_xy, axis=0) == 0):
             return None
 
-        components, _ = pca(coords_xy) 
+        _, components, _ = pca(coords_xy) 
         principal_axis = components[:,0]
 
         # Resolve 180 deg ambiguity by aligning with up direction
@@ -267,7 +267,7 @@ class Blob:
     width: float
     height: float
     area: float
-    angle_deg: float
+    angle_rad: float
 
 def filter_contours_centroids(
         ar: cv2.UMat,
@@ -328,10 +328,8 @@ def filter_contours(
         if not (min_size < area < max_size):
             continue
         
-        (cx, cy), (width, height), angle = cv2.minAreaRect(cnt)
-
+        (cx, cy), (width, height), _ = cv2.minAreaRect(cnt)
         if width < height:
-            angle = angle + 90
             width, height = height, width
         
         if min_length is not None and height < min_length:
@@ -344,18 +342,15 @@ def filter_contours(
             continue
 
         bbox_center = np.array([cx, cy], dtype=np.float32)
-        M = cv2.moments(cnt)
-        mass_center = np.array([M["m10"]/M["m00"], M["m01"]/M["m00"]], dtype=np.float32)        
+        cnt_points = cnt.reshape(-1, 2)
+        mass_center, axes, _ = pca(cnt_points)     
         mass_imbalance_vector = mass_center - bbox_center # points towards the 'head'
         
-        theta = np.deg2rad(angle)
-        axis_vector = np.array([np.cos(theta), np.sin(theta)], dtype=np.float32)
-        if np.dot(mass_imbalance_vector, axis_vector) < 0:
-            angle = (angle + 180) % 360  
-            axis_vector = -axis_vector
+        if np.dot(mass_imbalance_vector, axes[:,0]) < 0:
+            axes[:,0] = -axes[:,0]
 
-        side_vector = np.array([-axis_vector[1], axis_vector[0]])
-        axes = np.column_stack((axis_vector, side_vector))
+        if np.linalg.det(axes) < 0:
+            axes[:,1] = -axes[:,1]
 
         blobs.append(
             Blob(
@@ -364,7 +359,7 @@ def filter_contours(
                 width = width,
                 height = height,
                 area = area,
-                angle_deg = angle
+                angle_rad = np.arctan2(axes[1,1], axes[0,1])
             )
         )
 
