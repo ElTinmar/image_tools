@@ -259,3 +259,50 @@ def bwareafilter_cv2(
             ar[labels == c] = 0
 
     return ar
+
+@dataclass
+class Blob:
+    centroid: NDArray[np.float32]
+    angle: float
+
+def filter_contours(
+        ar: cv2.UMat,
+        min_size: int = 64, 
+        max_size: int = 256, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None
+    ) -> List[Blob]:
+
+    contours, _ = cv2.findContours(ar, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    blobs = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+
+        if not (min_size < area < max_size):
+            continue
+        
+        (cx, cy), (width, height), angle = cv2.minAreaRect(cnt)
+
+        if width < height:
+            angle = angle + 90
+            width, height = height, width
+        
+        if min_length is not None and height < min_length:
+            continue
+        if max_length is not None and height > max_length:
+            continue
+        if min_width is not None and width < min_width:
+            continue
+        if max_width is not None and width > max_width:
+            continue
+
+        blobs.append(
+            Blob(
+                centroid = np.array((cx,cy), dtype=np.float32),
+                angle = angle
+            )
+        )
+
+    return blobs

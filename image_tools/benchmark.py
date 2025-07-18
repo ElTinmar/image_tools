@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import time
+from .morphology import filter_contours, bwareafilter_props_cv2
 
 # Parameters
 sizes = 2**np.arange(5,12)
@@ -21,12 +22,7 @@ for sz in sizes:
     start_cc = time.perf_counter()
     for _ in range(repeats):
         mask = cv2.compare(image, 0.5, cv2.CMP_GT)
-        n_components, labels, stats, centroids = cv2.connectedComponentsWithStats(
-            mask, 
-            connectivity=8,
-            ltype = cv2.CV_16U,
-        )
-        centroid = centroids[1,:]
+        bwareafilter_props_cv2(mask, min_size=0, max_size=200_000)
     end_cc = time.perf_counter()
     avg_time_cc = (end_cc - start_cc) / repeats
 
@@ -62,13 +58,7 @@ for sz in sizes:
     start_fc = time.perf_counter()
     for _ in range(repeats):
         mask = cv2.compare(image, 0.5, cv2.CMP_GT)
-        contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        rect = cv2.minAreaRect(contours[0])  
-        area = cv2.contourArea(contours[0])
-        (cx, cy), (width, height), angle = rect
-        if width < height:
-            angle = angle + 90
-            width, height = height, width
+        filter_contours(mask, min_size=0, max_size=200_000)
     end_fc = time.perf_counter()
     avg_time_fc = (end_fc - start_fc) / repeats
 
