@@ -267,7 +267,7 @@ class Blob:
     width: float
     height: float
     area: float
-    angle: float
+    angle_deg: float
 
 def filter_contours_centroids(
         ar: cv2.UMat,
@@ -364,7 +364,7 @@ def filter_contours(
                 width = width,
                 height = height,
                 area = area,
-                angle = angle
+                angle_deg = angle
             )
         )
 
