@@ -3,7 +3,7 @@ import cv2
 import time
 
 # Parameters
-sz = 2048
+sz = 100
 image_size = (sz, sz)
 disk_center = (sz//2, sz//2)
 disk_radius = 20
@@ -14,31 +14,34 @@ image = np.zeros(image_size, dtype=np.float32)
 cv2.circle(image, disk_center, disk_radius, 1, -1)
          
 # --- Benchmark cv2.connectedComponentsWithStats ---
-mask = cv2.compare(image, 0.5, cv2.CMP_GT)
 start_cc = time.perf_counter()
 for _ in range(repeats):
-    st = cv2.connectedComponentsWithStats(
-    mask, 
-    connectivity=8,
-    ltype = cv2.CV_16U,
-)
+    mask = cv2.compare(image, 0.5, cv2.CMP_GT)
+    n_components, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        mask, 
+        connectivity=8,
+        ltype = cv2.CV_16U,
+    )
+    centroid = centroids[1,:]
 end_cc = time.perf_counter()
 avg_time_cc = (end_cc - start_cc) / repeats
 
 # --- Benchmark cv2.floodFill ---
-mask = np.zeros((sz+2,sz+2), np.uint8)
 start_ff = time.perf_counter()
 for _ in range(repeats):
-    #mask[:] = 0
-    cv2.floodFill(
+    mask = np.zeros((sz+2,sz+2), np.uint8)
+    flat_index = np.argmax(image)
+    y, x = np.unravel_index(flat_index, image.shape)
+    num_pixels_filled, image, mask, rect = cv2.floodFill(
         image, 
         mask, 
-        seedPoint=disk_center, 
+        seedPoint = (x,y), 
         newVal = 255, 
         loDiff = 0.1,
         upDiff = 0.1, 
         flags = cv2.FLOODFILL_MASK_ONLY | (255 << 8)
     )
+    centroid = (rect[0]+rect[2]//2, rect[1]+ rect[3]//2)
 end_ff = time.perf_counter()
 avg_time_ff = (end_ff - start_ff) / repeats
 
