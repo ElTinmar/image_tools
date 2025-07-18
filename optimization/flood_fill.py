@@ -63,11 +63,12 @@ for sz in sizes:
     for _ in range(repeats):
         mask = cv2.compare(image, 0.5, cv2.CMP_GT)
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        centroids = []
-        for cnt in contours:
-            M = cv2.moments(cnt)
-            if M["m00"] != 0:
-                centroids.append((M["m10"]/M["m00"], M["m01"]/M["m00"]))
+        rect = cv2.minAreaRect(contours[0])  
+        area = cv2.contourArea(contours[0])
+        (cx, cy), (width, height), angle = rect
+        if width < height:
+            angle = angle + 90
+            width, height = height, width
     end_fc = time.perf_counter()
     avg_time_fc = (end_fc - start_fc) / repeats
 
