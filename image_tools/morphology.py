@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage as ndi
 from numpy.typing import NDArray
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Callable
 from skimage.measure import regionprops
 from skimage.measure._regionprops import _RegionProperties
 import cv2
@@ -269,11 +269,222 @@ class Blob:
     area: float
     angle_rad: float
 
-def filter_moments_centroids() -> NDArray[np.float32]: ...
-def filter_moments() -> List[Blob]: ...
+def filter_connected_comp_centroids(
+        ar: cv2.UMat, 
+        max_size: int,
+        min_size: int = 0, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None,
+        connectivity: int = 8
+    ) -> NDArray[np.float32]:
 
-def filter_floodfill_centroid() -> NDArray[np.float32]: ...
-def filter_floodfill() -> Blob: ...
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
+
+    n_components, labels, stats, center = cv2.connectedComponentsWithStats(
+        ar,
+        connectivity = connectivity,
+        ltype = cv2.CV_16U
+    )
+    
+    centroids = []
+    for c in range(1, n_components):
+        width, height, area = stats[c, [cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT, cv2.CC_STAT_AREA]]
+        
+        if not (min_size < area < max_size):
+            continue
+        if min_length is not None and height < min_length:
+            continue
+        if max_length is not None and height > max_length:
+            continue
+        if min_width is not None and width < min_width:
+            continue
+        if max_width is not None and width > max_width:
+            continue
+        
+        centroids.append(center[c])
+
+    return np.array(centroids, dtype=np.float32)
+
+def filter_connected_comp(
+        ar: cv2.UMat, 
+        max_size: int = 256,
+        min_size: int = 0, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None,
+        connectivity: int = 8
+    ) -> List[Blob]: 
+
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
+
+    n_components, labels, stats, center = cv2.connectedComponentsWithStats(
+        ar,
+        connectivity = connectivity,
+        ltype = cv2.CV_16U
+    )
+
+    blobs = []
+    for c in range(1, n_components):
+
+        left, top = stats[c, [cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP]]
+        width, height = stats[c, [cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT]]
+        area = stats[c, cv2.CC_STAT_AREA]
+        
+        if not (min_size < area < max_size):
+            continue
+        if min_length is not None and height < min_length:
+            continue
+        if max_length is not None and height > max_length:
+            continue
+        if min_width is not None and width < min_width:
+            continue
+        if max_width is not None and width > max_width:
+            continue
+        
+        sub_labels = labels[top: top+height, left:left+width]
+        y, x = np.nonzero(sub_labels == c)
+        coordinates = np.column_stack((left+x, top+y))
+        mu, axes, scores = pca(coordinates)  
+
+        if abs(max(scores[:,0])) > abs(min(scores[:,0])):
+            axes[:,0] = -axes[:,0]
+
+        if np.linalg.det(axes) < 0:
+            axes[:,1] = -axes[:,1]
+
+        blobs.append(
+            Blob(
+                centroid = mu,
+                axes = axes,
+                width = width,
+                height = height,
+                area = area,
+                angle_rad = np.arctan2(axes[1,1], axes[0,1])
+            )
+        )
+
+    return blobs
+
+def filter_floodfill_centroid(
+        ar: cv2.UMat, 
+        max_size: int,
+        min_size: int = 0, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None,
+        loDiff: float = 0.1,
+        upDiff: float = 0.1, 
+        seed_fun: Callable[[cv2.UMat], int] = np.argmax
+    ) -> NDArray[np.float32]:
+
+    # CAUTION: This returns only one centroid
+
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
+
+    mask = np.zeros((ar.shape[0]+2,ar.shape[1]+2), np.uint8)
+
+    flat_index = seed_fun(ar)
+    seed_y, seed_x = np.unravel_index(flat_index, ar.shape)
+
+    area, _, mask, rect = cv2.floodFill(
+        ar, 
+        mask, 
+        seedPoint = (seed_x, seed_y), 
+        newVal = 255, 
+        loDiff = loDiff,
+        upDiff = upDiff , 
+        flags = cv2.FLOODFILL_MASK_ONLY | (255 << 8)
+    )
+
+    left, top, width, height = rect
+
+    if not (min_size < area < max_size):
+        return np.zeros((0,2), dtype=np.float32)
+    if min_length is not None and height < min_length:
+        return np.zeros((0,2), dtype=np.float32)
+    if max_length is not None and height > max_length:
+        return np.zeros((0,2), dtype=np.float32)
+    if min_width is not None and width < min_width:
+        return np.zeros((0,2), dtype=np.float32)
+    if max_width is not None and width > max_width:
+        return np.zeros((0,2), dtype=np.float32)
+    
+    return np.array([left+width//2, top+height//2], dtype=np.float32)
+
+def filter_floodfill(
+        ar: cv2.UMat, 
+        max_size: int = 256,
+        min_size: int = 0, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None,
+        loDiff: float = 0.1,
+        upDiff: float = 0.1, 
+        seed_fun: Callable[[cv2.UMat], int] = np.argmax
+    ) -> List[Blob]: 
+    
+    # CAUTION: This returns only one blob 
+
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
+
+    mask = np.zeros((ar.shape[0]+2,ar.shape[1]+2), np.uint8)
+
+    flat_index = seed_fun(ar)
+    seed_y, seed_x = np.unravel_index(flat_index, ar.shape)
+
+    area, _, mask, rect = cv2.floodFill(
+        ar, 
+        mask, 
+        seedPoint = (seed_x, seed_y), 
+        newVal = 255, 
+        loDiff = loDiff,
+        upDiff = upDiff , 
+        flags = cv2.FLOODFILL_MASK_ONLY | (255 << 8)
+    )
+
+    left, top, width, height = rect
+
+    if not (min_size < area < max_size):
+        return []
+    if min_length is not None and height < min_length:
+        return []
+    if max_length is not None and height > max_length:
+        return []
+    if min_width is not None and width < min_width:
+        return []
+    if max_width is not None and width > max_width:
+        return []
+
+    sub_mask = mask[top+1:top+height+1, left+1:left+width+1]
+    y, x = np.nonzero(sub_mask)
+    coordinates = np.column_stack((left+x, top+y))
+    mu, axes, scores = pca(coordinates)  
+
+    if abs(max(scores[:,0])) > abs(min(scores[:,0])):
+        axes[:,0] = -axes[:,0]
+
+    if np.linalg.det(axes) < 0:
+        axes[:,1] = -axes[:,1]
+
+    blob = Blob(
+        centroid = mu,
+        axes = axes,
+        width = width,
+        height = height,
+        area = area,
+        angle_rad = np.arctan2(axes[1,1], axes[0,1])
+    )
+
+    return blob
 
 def filter_contours_centroids(
         ar: cv2.UMat,
