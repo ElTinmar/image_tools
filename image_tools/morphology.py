@@ -484,7 +484,7 @@ def filter_floodfill(
         angle_rad = np.arctan2(axes[1,1], axes[0,1])
     )
 
-    return blob
+    return [blob]
 
 def filter_contours_centroids(
         ar: cv2.UMat,
@@ -560,10 +560,9 @@ def filter_contours(
 
         bbox_center = np.array([cx, cy], dtype=np.float32)
         cnt_points = cnt.reshape(-1, 2)
-        mass_center, axes, _ = pca(cnt_points)     
-        mass_imbalance_vector = mass_center - bbox_center # points towards the 'head'
+        mass_center, axes, scores = pca(cnt_points)     
         
-        if np.dot(mass_imbalance_vector, axes[:,0]) < 0:
+        if abs(max(scores[:,0])) > abs(min(scores[:,0])):
             axes[:,0] = -axes[:,0]
 
         if np.linalg.det(axes) < 0:

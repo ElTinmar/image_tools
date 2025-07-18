@@ -15,28 +15,28 @@ sizes = 2**np.arange(5,12)
 
 for sz in sizes:
 
-    print(sz)
     image_size = (sz, sz)
-    disk_center = (sz//4, sz//6)
-    disk_radius = sz//12
+    ellipse_center = (sz//4, sz//6)
+    axes_length = (sz//12, sz//20) 
+    ellipse_angle = 30
     repeats = 500
     
-    # Create binary image with a white disk
+    # Create binary image with a white ellipse
     image = np.zeros(image_size, dtype=np.float32)
-    cv2.circle(image, disk_center, disk_radius, 1, -1)
-            
+    image = cv2.ellipse(image, ellipse_center, axes_length, ellipse_angle, 0, 360, 1, -1)
+    
     # --- cv2.connectedComponentsWithStats ---
     start_cc = time.perf_counter()
     for _ in range(repeats):
         mask = cv2.compare(image, 0.5, cv2.CMP_GT)
-        filter_connected_comp_centroids(mask, max_size=200_000)
+        filter_connected_comp(mask, max_size=200_000)
     end_cc = time.perf_counter()
     avg_time_cc = (end_cc - start_cc) / repeats
 
     # --- cv2.floodFill ---
     start_ff = time.perf_counter()
     for _ in range(repeats):
-        filter_floodfill_centroid(image, max_size=200_000)
+        filter_floodfill(image, max_size=200_000)
     end_ff = time.perf_counter()
     avg_time_ff = (end_ff - start_ff) / repeats
 
@@ -44,7 +44,7 @@ for sz in sizes:
     start_fc = time.perf_counter()
     for _ in range(repeats):
         mask = cv2.compare(image, 0.5, cv2.CMP_GT)
-        filter_contours_centroids(mask, max_size=200_000)
+        filter_contours(mask, max_size=200_000)
     end_fc = time.perf_counter()
     avg_time_fc = (end_fc - start_fc) / repeats
 
