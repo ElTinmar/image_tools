@@ -1,4 +1,4 @@
-name: image_tool
+name: image_tools
 channels:
 - conda-forge
 dependencies:
