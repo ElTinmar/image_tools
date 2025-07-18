@@ -263,12 +263,16 @@ def bwareafilter_cv2(
 @dataclass
 class Blob:
     centroid: NDArray[np.float32]
+    axes: NDArray[np.float32]
+    width: float
+    height: float
+    area: float
     angle: float
 
 def filter_contours(
         ar: cv2.UMat,
-        min_size: int = 64, 
-        max_size: int = 256, 
+        max_size: int, 
+        min_size: int = 0, 
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
         min_width: Optional[int] = None,
@@ -298,9 +302,27 @@ def filter_contours(
         if max_width is not None and width > max_width:
             continue
 
+        bbox_center = np.array([cx, cy], dtype=np.float32)
+        M = cv2.moments(cnt)
+        mass_center = np.array([M["m10"]/M["m00"], M["m01"]/M["m00"]], dtype=np.float32)        
+        direction = mass_center - bbox_center
+        
+        theta = np.deg2rad(angle)
+        axis_vector = np.array([np.cos(theta), np.sin(theta)], dtype=np.float32)
+        if np.dot(direction, axis_vector) < 0:
+            angle = (angle + 180) % 360  
+            axis_vector = -axis_vector
+
+        side_vector = np.array([-axis_vector[1], axis_vector[0]])
+        axes = np.column_stack((axis_vector, side_vector))
+
         blobs.append(
             Blob(
                 centroid = np.array((cx,cy), dtype=np.float32),
+                axes = axes,
+                width = width,
+                height = height,
+                area = area,
                 angle = angle
             )
         )
