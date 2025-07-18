@@ -11,7 +11,7 @@ for sz in sizes:
     image_size = (sz, sz)
     disk_center = (sz//4, sz//6)
     disk_radius = sz//12
-    repeats = 1000
+    repeats = 500
     
     # Create binary image with a white disk
     image = np.zeros(image_size, dtype=np.float32)
