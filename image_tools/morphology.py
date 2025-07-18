@@ -269,6 +269,44 @@ class Blob:
     area: float
     angle: float
 
+def filter_contours_centroids(
+        ar: cv2.UMat,
+        max_size: int, 
+        min_size: int = 0, 
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        min_width: Optional[int] = None,
+        max_width: Optional[int] = None
+    ) -> NDArray[np.float32]:
+
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
+        
+    contours, _ = cv2.findContours(ar, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    centroids = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+
+        if not (min_size < area < max_size):
+            continue
+        
+        (cx, cy), (width, height), angle = cv2.minAreaRect(cnt)
+        if width < height:
+            width, height = height, width
+        
+        if min_length is not None and height < min_length:
+            continue
+        if max_length is not None and height > max_length:
+            continue
+        if min_width is not None and width < min_width:
+            continue
+        if max_width is not None and width > max_width:
+            continue
+
+        centroids.append([cx, cy])
+    
+    return np.array(centroids, dtype=np.float32)
+
 def filter_contours(
         ar: cv2.UMat,
         max_size: int, 
@@ -278,6 +316,9 @@ def filter_contours(
         min_width: Optional[int] = None,
         max_width: Optional[int] = None
     ) -> List[Blob]:
+
+    if min_size < 0:
+        raise ValueError('min_size must be positive')
 
     contours, _ = cv2.findContours(ar, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blobs = []
