@@ -416,7 +416,7 @@ def filter_floodfill_centroid(
     if max_width is not None and width > max_width:
         return np.zeros((0,2), dtype=np.float32)
     
-    return np.array([left+width//2, top+height//2], dtype=np.float32)
+    return np.array([[left+width//2, top+height//2]], dtype=np.float32)
 
 def filter_floodfill(
         ar: cv2.UMat, 
