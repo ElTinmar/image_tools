@@ -558,7 +558,6 @@ def filter_contours(
         if max_width is not None and width > max_width:
             continue
 
-        bbox_center = np.array([cx, cy], dtype=np.float32)
         cnt_points = cnt.reshape(-1, 2)
         mass_center, axes, scores = pca(cnt_points)     
         
