@@ -2,7 +2,7 @@
 from .enhance import *
 from .convert import *
 from .rotation import *
-from .morphology import *
+from .blob_detection import *
 from .roi_selector_widget import *
 from .polyroi import *
 from .GUIs import *
@@ -13,6 +13,6 @@ try:
     from .enhance_gpu import *
     from .convert_gpu import *
     from .rotation_gpu import *
-    from .morphology_gpu import *
+    from .blob_detection_GPU import *
 except:
     print('image_tools GPU functionalities disabled')
