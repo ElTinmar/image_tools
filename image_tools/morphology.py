@@ -351,9 +351,11 @@ def filter_connected_comp(
         coordinates = np.column_stack((left+x, top+y))
         mu, axes, scores = pca(coordinates)  
 
+        # Ensure axis 0 points in a consistent direction
         if abs(max(scores[:,0])) > abs(min(scores[:,0])):
             axes[:,0] = -axes[:,0]
 
+        # Ensure right-handed coordinate system
         if np.linalg.det(axes) < 0:
             axes[:,1] = -axes[:,1]
 
@@ -469,9 +471,11 @@ def filter_floodfill(
     coordinates = np.column_stack((left+x, top+y))
     mu, axes, scores = pca(coordinates)  
 
+    # Ensure axis 0 points in a consistent direction
     if abs(max(scores[:,0])) > abs(min(scores[:,0])):
         axes[:,0] = -axes[:,0]
 
+    # Ensure right-handed coordinate system
     if np.linalg.det(axes) < 0:
         axes[:,1] = -axes[:,1]
 
@@ -561,9 +565,11 @@ def filter_contours(
         cnt_points = cnt.reshape(-1, 2)
         mass_center, axes, scores = pca(cnt_points)     
         
+        # Ensure axis 0 points in a consistent direction
         if abs(max(scores[:,0])) > abs(min(scores[:,0])):
             axes[:,0] = -axes[:,0]
 
+        # Ensure right-handed coordinate system
         if np.linalg.det(axes) < 0:
             axes[:,1] = -axes[:,1]
 
