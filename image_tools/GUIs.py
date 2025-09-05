@@ -58,6 +58,24 @@ class ImageViewer(QGraphicsView):
                 self.scale(1+self.ZOOM_FACTOR, 1+self.ZOOM_FACTOR)
             else:
                 self.scale(1-self.ZOOM_FACTOR, 1-self.ZOOM_FACTOR)
+
+class ImageViewerCoord(ImageViewer):
+    
+    mouseMoved = pyqtSignal(float, float) 
+
+    def mouseMoveEvent(self, event):
+
+        if self.pixmap_item.pixmap().isNull():
+            return
+
+        scene_pos = self.mapToScene(event.pos())
+        img_pos = self.pixmap_item.mapFromScene(scene_pos)
+
+        if self.pixmap_item.contains(img_pos):
+            x, y = int(img_pos.x()), int(img_pos.y())
+            self.mouseMoved.emit(x,y)
+
+        super().mouseMoveEvent(event)
     
 #TODO make sure it works with RGB and grayscale images 
 class CloneTool(QWidget):
