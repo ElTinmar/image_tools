@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='image_tools',
-    python_requires='>=3.8',
+    python_requires='>=3.7',
     author='Martin Privat',
     version='0.7.25',
     packages=['image_tools','image_tools.tests'],
