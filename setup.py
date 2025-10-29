@@ -16,7 +16,6 @@ setup(
         "pyqtgraph",
         "opencv-python",
         "scikit-image",
-        "scikit-learn",
         "geometry @ git+https://github.com/ElTinmar/geometry.git@main",
         "qt_widgets @ git+https://github.com/ElTinmar/qt_widgets.git@main"
     ]
