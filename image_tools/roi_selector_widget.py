@@ -1,8 +1,7 @@
 from PyQt5.QtWidgets import QDialog, QWidget, QLabel, QHBoxLayout, QVBoxLayout, QListWidget, QPushButton
 from PyQt5.QtGui import QPainter, QColor, QBrush, QPen
-from PyQt5.QtCore import Qt, QPoint, QRect
+from PyQt5.QtCore import Qt, QRect
 from qt_widgets import NDarray_to_QPixmap
-
 
 class ROISelectorWidget(QWidget):
 
