@@ -1,12 +1,13 @@
-from PyQt5.QtWidgets import QDialog, QWidget, QLabel, QHBoxLayout, QVBoxLayout, QListWidget, QPushButton
-from PyQt5.QtGui import QPainter, QColor, QBrush, QPen
-from PyQt5.QtCore import Qt, QRect
+from qtpy.QtWidgets import (QDialog, QWidget, QLabel, QHBoxLayout, 
+                            QVBoxLayout, QListWidget, QPushButton, 
+                            QApplication)
+from qtpy.QtGui import QPainter, QColor, QBrush, QPen
+from qtpy.QtCore import Qt, QRect
 from qt_widgets import NDarray_to_QPixmap
 
 class ROISelectorWidget(QWidget):
 
-    def __init__(self, image = None, *args, **kwargs):
-    
+    def __init__(self, image=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         self.assignment = None
@@ -20,6 +21,7 @@ class ROISelectorWidget(QWidget):
         self.image_label = QLabel(self)
         if self.image is not None:
             self.image_label.setPixmap(NDarray_to_QPixmap(self.image))
+        
         self.image_label.mousePressEvent = self.on_mouse_press
         self.image_label.mouseMoveEvent = self.on_mouse_move
 
@@ -46,7 +48,6 @@ class ROISelectorWidget(QWidget):
         layout.addLayout(right_panel)
 
     def paintEvent(self, event):
-        # redraw on top of image
         if self.image is not None:
             self.image_label.setPixmap(NDarray_to_QPixmap(self.image))
             painter = QPainter(self.image_label.pixmap())
@@ -63,43 +64,69 @@ class ROISelectorWidget(QWidget):
                 painter.setPen(pen)
                 painter.setBrush(brush)   
                 painter.drawRect(roi)
+            # It's good practice to end the painter explicitly
+            painter.end()
 
     def on_delete(self):
         if len(self.ROIs) > 0:
             idx = self.roi_list.currentRow()
-            self.roi_list.takeItem(idx)
-            self.ROIs.pop(idx)
+            if idx >= 0: # Ensure something is actually selected
+                self.roi_list.takeItem(idx)
+                self.ROIs.pop(idx)
+                self.update()
 
     def on_done(self):
         pass
 
     def on_roi_selection(self, index):
-        self.current_roi = self.ROIs[index]
+        if 0 <= index < len(self.ROIs):
+            self.current_roi = self.ROIs[index]
+            self.update()
 
     def on_mouse_press(self, event):
+        # In QtPy/PySide/PyQt6, event.button() is the standard way to check
         if event.button() == Qt.LeftButton:
-            # left-click always create a new ROI
             pos = event.pos()
-            self.current_roi = QRect(pos.x(),pos.y(),0,0)
+            self.current_roi = QRect(pos.x(), pos.y(), 0, 0)
             self.ROIs.append(self.current_roi)
             idx = len(self.ROIs)
             self.roi_list.addItem(str(idx-1))
             self.roi_list.setCurrentRow(idx-1)
-        elif event.button() == Qt.RightButton:
-            # you can resize current ROI with right-click
-            pass
         self.update()
 
     def on_mouse_move(self, event):
-        pos = event.pos() 
-        self.ROIs[-1].setBottomRight(pos)
-        self.current_roi = self.ROIs[-1]
-        self.update()
+        if len(self.ROIs) > 0:
+            pos = event.pos() 
+            self.ROIs[-1].setBottomRight(pos)
+            self.current_roi = self.ROIs[-1]
+            self.update()
 
     def get_ROIs(self):
         return [(r.x(), r.y(), r.width(), r.height()) for r in self.ROIs]
 
 
-class ROISelectorDialog(QDialog,ROISelectorWidget):
+class ROISelectorDialog(QDialog, ROISelectorWidget):
     def on_done(self):
         self.accept()
+
+if __name__ == "__main__":
+    
+    import sys
+    import numpy as np
+
+    app = QApplication(sys.argv)
+    test_image = np.zeros((512, 512, 3), dtype=np.uint8)
+    
+    test_image[:, :, 0] = 50   # Dark Red background
+    test_image[100:400, 100:400, 1] = 150  # Green square in middle
+
+    dialog = ROISelectorDialog(image=test_image)
+    dialog.setWindowTitle("ROI Selector Test")
+
+    if dialog.exec_():
+        rois = dialog.get_ROIs()
+        print(f"Selection complete. Captured {len(rois)} ROIs:")
+        for i, rect in enumerate(rois):
+            print(f" ROI {i}: x={rect[0]}, y={rect[1]}, w={rect[2]}, h={rect[3]}")
+    else:
+        print("User cancelled the selection.")

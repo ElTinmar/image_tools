@@ -1,11 +1,11 @@
-from PyQt5.QtWidgets import (
+from qtpy.QtWidgets import (
     QWidget, QGraphicsScene, QGraphicsView, QGraphicsTextItem, 
     QGraphicsEllipseItem, QGraphicsItemGroup, QGraphicsItem, 
     QVBoxLayout, QHBoxLayout, QPushButton, QCheckBox,
     QGraphicsLineItem, QDialog
 )
-from PyQt5.QtCore import pyqtSignal, Qt, QRectF, QPoint, QPointF, QLineF
-from PyQt5.QtGui import QBrush, QPen, QFont, QPixmap
+from qtpy.QtCore import Signal as pyqtSignal, Qt, QRectF, QPointF, QLineF
+from qtpy.QtGui import QBrush, QPen, QFont, QPixmap
 from qt_widgets import NDarray_to_QPixmap, LabeledSliderDoubleSpinBox, LabeledSliderSpinBox
 import pyqtgraph as pg
 
@@ -15,96 +15,74 @@ from typing import Protocol
 from image_tools import im2single, im2uint8, im2rgb
 
 class ImageWidget(Protocol):
-    
-    def set_image(self, image: np.ndarray) -> None:
-        ...
-
-    def get_image(self) -> np.ndarray:
-        ...
-
+    def set_image(self, image: np.ndarray) -> None: ...
+    def get_image(self) -> np.ndarray: ...
 
 class ImageViewer(QGraphicsView):
-
     ZOOM_FACTOR = 0.1 
 
     def __init__(self, image: np.ndarray, *args, **kwargs) -> None:
-
         super().__init__(*args, **kwargs)
-
         self.scene = QGraphicsScene()
         self.pixmap_item = self.scene.addPixmap(QPixmap())
         self.setScene(self.scene)
         self.set_image(image)
 
     def set_image(self, image: np.ndarray):
-
         self.image = im2rgb(im2uint8(image))
         self.pixmap_item.setPixmap(NDarray_to_QPixmap(self.image))
 
     def get_image(self) -> np.ndarray:
-        
         return self.image
     
     def wheelEvent(self, event):
-        """
-        zoom with wheel
-        """
-
         if event.modifiers() == Qt.NoModifier:
-        
             delta = event.angleDelta().y()
-            zoom = delta and delta // abs(delta)
-            if zoom > 0:
-                self.scale(1+self.ZOOM_FACTOR, 1+self.ZOOM_FACTOR)
-            else:
-                self.scale(1-self.ZOOM_FACTOR, 1-self.ZOOM_FACTOR)
+            if delta != 0:
+                zoom = delta // abs(delta)
+                if zoom > 0:
+                    self.scale(1+self.ZOOM_FACTOR, 1+self.ZOOM_FACTOR)
+                else:
+                    self.scale(1-self.ZOOM_FACTOR, 1-self.ZOOM_FACTOR)
 
 class ImageViewerCoord(ImageViewer):
-    
     mouseMoved = pyqtSignal(float, float) 
 
     def __init__(self, *args, **kwargs):
-        
         super().__init__(*args, **kwargs)
         self.setMouseTracking(True)
 
     def mouseMoveEvent(self, event):
-
         if self.pixmap_item.pixmap().isNull():
             return
 
+        # event.pos() is fine for both PyQt5/6 in this context
         scene_pos = self.mapToScene(event.pos())
         img_pos = self.pixmap_item.mapFromScene(scene_pos)
 
         if self.pixmap_item.contains(img_pos):
             x, y = int(img_pos.x()), int(img_pos.y())
-            self.mouseMoved.emit(x,y)
+            self.mouseMoved.emit(float(x), float(y))
 
         super().mouseMoveEvent(event)
     
-#TODO make sure it works with RGB and grayscale images 
 class CloneTool(QWidget):
     '''
     Clone tool to manually modify images. 
-    Copy data from a location and blend it with an other location
+    Copy data from a location (Ctrl+Click) and blend it with another (Click).
     '''
 
     DEFAULT_RADIUS: int = 20
     DEFAULT_HARDNESS: float = 0.5
 
-    def __init__(
-            self, 
-            image: np.ndarray, 
-            *args, 
-            **kwargs
-        ) -> None:
-
+    def __init__(self, image: np.ndarray, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.image = image
         self.radius = self.DEFAULT_RADIUS
         self.hardness = self.DEFAULT_HARDNESS
-        self.data = np.zeros((int(2*self.radius), int(2*self.radius)), dtype=np.uint8)
+        
+        self.data = np.zeros((int(2*self.radius), int(2*self.radius), 3), dtype=np.uint8)
 
         self.create_widgets()
         self.layout_widgets()
@@ -112,7 +90,7 @@ class CloneTool(QWidget):
 
         self.pen = QPen()
         self.pen.setWidth(1)
-        self.pen.setBrush(Qt.black)
+        self.pen.setColor(Qt.black)
         self.pen.setStyle(Qt.DotLine)
 
         self.selection_ellipse = QGraphicsEllipseItem(0, 0, 2*self.radius, 2*self.radius)
@@ -120,15 +98,15 @@ class CloneTool(QWidget):
         self.viewer.scene.addItem(self.selection_ellipse)
 
     def create_widgets(self):
-
         self.viewer = ImageViewer(self.image)
         self.viewer.setMouseTracking(True)
+        
         self.viewer.mouseMoveEvent = self.mouseMoveEvent
         self.viewer.mousePressEvent = self.mousePressEvent
 
         self.radius_spinbox = LabeledSliderSpinBox()
         self.radius_spinbox.setText('Radius (px)')
-        self.radius_spinbox.setRange(5, np.max(self.image.shape))
+        self.radius_spinbox.setRange(5, min(self.image.shape[:2]) // 2)
         self.radius_spinbox.setValue(self.DEFAULT_RADIUS)
         self.radius_spinbox.valueChanged.connect(self.radius_changed)
 
@@ -140,36 +118,39 @@ class CloneTool(QWidget):
         self.hardness_spinbox.valueChanged.connect(self.hardness_changed)
 
     def create_mask(self):
-
-        x = np.linspace(-1, 1, int(2*self.radius))
-        y = np.linspace(-1, 1, int(2*self.radius))
+        size = int(2 * self.radius)
+        x = np.linspace(-1, 1, size)
+        y = np.linspace(-1, 1, size)
         x, y = np.meshgrid(x, y)
-        self.mask = np.exp(-(x**2 + y**2) / (2*self.hardness**2))
-        self.mask = (self.mask - np.min(self.mask)) / (np.max(self.mask) - np.min(self.mask)) 
-        self.mask[(x**2 + y**2) >= 1] = 0
+        
+        # Gaussian mask for soft blending
+        mask = np.exp(-(x**2 + y**2) / (2 * self.hardness**2))
+        mask = (mask - np.min(mask)) / (np.max(mask) - np.min(mask)) 
+        mask[(x**2 + y**2) >= 1] = 0
+        
+        # Expand dims for RGB broadcasting
+        if len(self.image.shape) == 3:
+            self.mask = mask[:, :, np.newaxis]
+        else:
+            self.mask = mask
 
     def hardness_changed(self):
         self.hardness = self.hardness_spinbox.value()
-
-        # modify blend mask
         self.create_mask()
 
     def radius_changed(self):
         self.radius = self.radius_spinbox.value()
-
-        # modify blend mask
         self.create_mask()
 
-        # modify ellipse
+        # Update the visual cursor size
+        size = float(2 * self.radius)
         rect = self.selection_ellipse.rect()
-        rect.setHeight(int(2*self.radius))
-        rect.setWidth(int(2*self.radius))
+        rect.setWidth(size)
+        rect.setHeight(size)
         self.selection_ellipse.setRect(rect)
 
     def layout_widgets(self):
-        
         main_layout = QHBoxLayout(self)
-
         controls = QVBoxLayout()
         controls.addWidget(self.radius_spinbox)
         controls.addWidget(self.hardness_spinbox)
@@ -179,55 +160,65 @@ class CloneTool(QWidget):
         main_layout.addLayout(controls)
     
     def mouseMoveEvent(self, event):
-
-        widget_pos = event.pos()
-        scene_pos = self.viewer.mapToScene(widget_pos)
-        self.selection_ellipse.setRect(scene_pos.x()-self.radius, scene_pos.y()-self.radius, 2*self.radius, 2*self.radius)
+        # Update ellipse position to follow mouse
+        scene_pos = self.viewer.mapToScene(event.pos())
+        self.selection_ellipse.setRect(
+            scene_pos.x() - self.radius, 
+            scene_pos.y() - self.radius, 
+            2 * self.radius, 
+            2 * self.radius
+        )
     
     def mousePressEvent(self, event):
+        scene_pos = self.viewer.mapToScene(event.pos())
+        ix, iy = int(scene_pos.x()), int(scene_pos.y())
+        r = int(self.radius)
 
-        widget_pos = event.pos()
-        scene_pos = self.viewer.mapToScene(widget_pos)
+        # Slice boundaries
+        y0, y1 = iy - r, iy + r
+        x0, x1 = ix - r, ix + r
+
+        # Safety check: only proceed if we are within image bounds
+        if y0 < 0 or x0 < 0 or y1 > self.image.shape[0] or x1 > self.image.shape[1]:
+            return
 
         if event.button() == Qt.LeftButton:
-
             if event.modifiers() == Qt.ControlModifier:
-                # copy pixels  
-                self.data = self.image[
-                    int(scene_pos.y()-self.radius):int(scene_pos.y()+self.radius),
-                    int(scene_pos.x()-self.radius):int(scene_pos.x()+self.radius),
-                ]
-
+                # SOURCE: Copy pixels from this location
+                self.data = self.image[y0:y1, x0:x1].copy()
             else:
-                # blend pixels
-                blend = self.image[
-                    int(scene_pos.y()-self.radius):int(scene_pos.y()+self.radius),
-                    int(scene_pos.x()-self.radius):int(scene_pos.x()+self.radius),
-                ]
-                blend[:] = self.mask*self.data + (1-self.mask)*blend
-                self.viewer.set_image(self.image)
+                # TARGET: Blend copied pixels onto this location
+                if self.data.shape == self.image[y0:y1, x0:x1].shape:
+                    target = self.image[y0:y1, x0:x1]
+                    # Alpha blending formula: (mask * source) + ((1 - mask) * target)
+                    blended = (self.mask * self.data + (1 - self.mask) * target).astype(np.uint8)
+                    self.image[y0:y1, x0:x1] = blended
+                    self.viewer.set_image(self.image)
 
     def wheelEvent(self, event):
-
         if event.modifiers() == Qt.ControlModifier:
-            
             delta = event.angleDelta().y()
-            zoom = delta and delta // abs(delta)
-            if zoom > 0:
-                self.radius_spinbox.stepBy(5)
+            if delta > 0:
+                self.radius_spinbox.setValue(self.radius + 2)
             else:
-                self.radius_spinbox.stepBy(-5)
+                self.radius_spinbox.setValue(self.radius - 2)
+        else:
+            super().wheelEvent(event)
 
     def get_image(self):
         return self.image
     
 class ControlPoint(ImageViewer):
+    """
+    Interaction layer to add, remove, and move control points on an image.
+    Shift + Left-Click: Add point
+    Right-Click: Remove closest point
+    """
 
     POINT_RADIUS = 1.5
     LABEL_OFFSET = 5 
     
     def __init__(self, image: np.ndarray, *args, **kwargs) -> None:
-
         super().__init__(image, *args, **kwargs)
 
         self.labels = {}
@@ -236,88 +227,74 @@ class ControlPoint(ImageViewer):
         self.font = QFont("Arial", 20)
 
     def closest_group(self, pos: QPointF):
-
-        # get all group objects
+        items = self.scene.items()
         groups = [
-            item 
-            for item in self.scene.items() 
+            item for item in items 
             if isinstance(item, QGraphicsItemGroup)
         ]
 
-        # compute the manhattan distance from pos to all group objects
+        if not groups:
+            return None
+
         distances = [
-            (item.sceneBoundingRect().center() - pos).manhattanLength() 
-            for item in self.scene.items() 
-            if isinstance(item, QGraphicsItemGroup)
+            (item, (item.sceneBoundingRect().center() - pos).manhattanLength())
+            for item in groups
         ]
 
-        # return the closest group
-        if groups:
-            return min(zip(groups,distances), key=lambda x: x[1])[0]
+        return min(distances, key=lambda x: x[1])[0]
 
     @property    
     def control_points(self):
-
-        # get the center position of all ellipses in the scene
-        centers = [
+        return [
             item.sceneBoundingRect().center() 
             for item in self.scene.items() 
             if isinstance(item, QGraphicsEllipseItem)
         ]
-        return centers
 
     def mousePressEvent(self, event):
         """
         shift + left-click to add a new control point
         right-click to remove closest control point
-        double-click and drag to move control point  
         """
-        
         widget_pos = event.pos()
         scene_pos = self.mapToScene(widget_pos)
 
         if event.modifiers() == Qt.ShiftModifier:
-            
             if event.button() == Qt.LeftButton:
-            
-                # get num
                 num = 0 if not self.labels else max(self.labels.values()) + 1
 
-                # add dot
                 bbox = QRectF(
                     scene_pos.x() - self.POINT_RADIUS, 
                     scene_pos.y() - self.POINT_RADIUS, 
-                    2*self.POINT_RADIUS, 
-                    2*self.POINT_RADIUS
+                    2 * self.POINT_RADIUS, 
+                    2 * self.POINT_RADIUS
                 )
                 dot = QGraphicsEllipseItem(bbox)
                 dot.setBrush(self.brush)
                 dot.setPen(self.pen)
                 self.scene.addItem(dot)
 
-                # add label
-                text_pos = scene_pos + QPoint(self.LABEL_OFFSET,-self.LABEL_OFFSET)
+                text_pos = scene_pos + QPointF(float(self.LABEL_OFFSET), -float(self.LABEL_OFFSET))
                 label = QGraphicsTextItem(str(num))
                 label.setPos(text_pos)
                 label.setFont(self.font)
                 label.setDefaultTextColor(Qt.red)
                 self.scene.addItem(label)
 
-                # group dot and label together
                 group = self.scene.createItemGroup([dot, label])
-                group.setFlags(QGraphicsItem.ItemIsMovable) 
+                group.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable) 
                 self.labels[group] = num
 
-        if event.button() == Qt.RightButton:
-
-            # get closest group and delete it and its children
+        elif event.button() == Qt.RightButton:
             group = self.closest_group(scene_pos)  
             if group:
-                self.labels.pop(group)
+                self.labels.pop(group, None)
                 for item in group.childItems():
                     group.removeFromGroup(item)
                     self.scene.removeItem(item)
                 self.scene.destroyItemGroup(group)
+        
+        super().mousePressEvent(event)
 
 
 class Enhance(QWidget):
@@ -609,108 +586,95 @@ class Enhance(QWidget):
 
 class FishInfo(ImageViewer):
     '''
-    Click on fish to get centroid/main axis
+    Click on fish to get centroid/main axis.
+    QtPy compatible version.
     '''
 
     def __init__(self, image: np.ndarray, *args, **kwargs) -> None:
-
         super().__init__(image, *args, **kwargs)
         self.setMouseTracking(True)
 
         self.centroid = None
         self.main_axis = None
         self.current_stage = 'centroid'
+        
+        # Use Qt.GlobalColor (e.g., Qt.red)
         self.pending_pen = QPen(Qt.red, 5)
         self.preview_pen = QPen(Qt.red, 2)
         self.accepted_pen = QPen(Qt.green, 5)
 
-        self.current_point = QGraphicsEllipseItem(-1,-1,1,1)
+        self.current_point = QGraphicsEllipseItem(-1, -1, 1, 1)
         self.current_point.setPen(self.pending_pen)
         self.scene.addItem(self.current_point)
 
-        self.current_line = QGraphicsLineItem(-1,-1,-1,-1)
+        self.current_line = QGraphicsLineItem(-1, -1, -1, -1)
         self.current_line.setPen(self.pending_pen)
         self.scene.addItem(self.current_line)
 
         self.setWindowTitle('Left-click to select centroid. Right-click to validate')
     
     def get_data(self) -> dict:
-        # PyQt (0,0) is topleft
+        # scene_pos returns QPointF; .x() and .y() are floats
         centroid = np.array([self.centroid.x(), self.centroid.y()])
         main_axis = np.array([self.main_axis.x(), self.main_axis.y()]) 
-        main_axis = main_axis/np.linalg.norm(main_axis)
+        
+        norm = np.linalg.norm(main_axis)
+        if norm > 0:
+            main_axis = main_axis / norm
+            
         second_axis = np.array([-main_axis[1], main_axis[0]])
-        heading = np.hstack((main_axis[:,np.newaxis], second_axis[:,np.newaxis]))
+        heading = np.hstack((main_axis[:, np.newaxis], second_axis[:, np.newaxis]))
 
-        res = {}
-        res['centroid'] = centroid.tolist()
-        res['heading'] = heading.tolist()
-        return res
+        return {
+            'centroid': centroid.tolist(),
+            'heading': heading.tolist()
+        }
 
     def mousePressEvent(self, event):
-
         widget_pos = event.pos()
         scene_pos = self.mapToScene(widget_pos)
 
         if self.current_stage == 'centroid':
-
             if event.button() == Qt.LeftButton:
-                '''place centroid'''
-
                 self.centroid = scene_pos
-                self.current_point.setRect(scene_pos.x(),scene_pos.y(),1,1)
+                self.current_point.setRect(scene_pos.x(), scene_pos.y(), 1, 1)
 
-            if event.button() == Qt.RightButton:
-                '''validate point and go to next stage'''
+            elif event.button() == Qt.RightButton:
+                if self.centroid is not None:
+                    self.current_point.setPen(self.accepted_pen)
 
-                self.current_point.setPen(self.accepted_pen)
+                    line = QLineF(self.centroid, self.centroid)
+                    self.preview_line = QGraphicsLineItem(line)
+                    self.preview_line.setPen(self.preview_pen)
+                    self.scene.addItem(self.preview_line)
 
-                # add preview line
-                line = QLineF(self.centroid, self.centroid)
-                self.preview_line = QGraphicsLineItem(line)
-                self.preview_line.setPen(self.preview_pen)
-                self.scene.addItem(self.preview_line)
-
-                self.current_line.setLine(line)
-
-                self.current_stage = 'main axis'
-                self.setWindowTitle('Left-click to select main axis. Right-click to validate')
+                    self.current_line.setLine(line)
+                    self.current_stage = 'main axis'
+                    self.setWindowTitle('Left-click: select main axis. Right-click: validate')
 
         elif self.current_stage == 'main axis':
-
-            # left-click adds a new point
             if event.button() == Qt.LeftButton:
-                '''place main direction'''
-                
                 self.main_axis = scene_pos - self.centroid
                 line = self.current_line.line()
                 line.setP2(scene_pos)
                 self.current_line.setLine(line)
                 
-            # right-click 
-            if event.button() == Qt.RightButton:
-                '''validate point and go to next stage'''
-                
-                self.current_line.setPen(self.accepted_pen)
-                self.scene.removeItem(self.preview_line)
-
-                self.current_stage = 'left eye'
-                self.close()
-
-        elif self.current_stage == 'left eye':
-            #TODO
-            pass  
+            elif event.button() == Qt.RightButton:
+                if self.main_axis is not None:
+                    self.current_line.setPen(self.accepted_pen)
+                    self.scene.removeItem(self.preview_line)
+                    self.current_stage = 'left eye'
+                    self.close()
 
     def mouseMoveEvent(self, event):
-
         widget_pos = event.pos()
         scene_pos = self.mapToScene(widget_pos)
 
         if self.current_stage == 'main axis':
-
-            line = self.preview_line.line()
-            line.setP2(scene_pos)
-            self.preview_line.setLine(line)    
+            if hasattr(self, 'preview_line'):
+                line = self.preview_line.line()
+                line.setP2(scene_pos)
+                self.preview_line.setLine(line)
     
 class DrawPolyMask(ImageViewer):
 
@@ -853,3 +817,68 @@ class DrawPolyMaskDialog(QDialog):
     
     def flatten(self):
         return self.drawer.flatten()
+    
+
+if __name__ == "__main__":
+    
+    import sys
+    from qtpy.QtWidgets import QApplication, QMainWindow, QTabWidget
+
+    # Create the application instance
+    app = QApplication(sys.argv)
+
+    # Create a dummy RGB image for testing (a gradient to see effects)
+    test_image = np.zeros((400, 600, 3), dtype=np.uint8)
+    for i in range(400):
+        for j in range(600):
+            test_image[i, j] = [i % 255, j % 255, (i + j) % 255]
+
+    # Main Window setup
+    main_window = QMainWindow()
+    main_window.setWindowTitle("Widget Test Suite")
+    main_window.resize(1000, 800)
+
+    # Tab widget to hold all different tools
+    tabs = QTabWidget()
+    main_window.setCentralWidget(tabs)
+
+    # 1. Test CloneTool
+    try:
+        clone_tool = CloneTool(test_image.copy())
+        tabs.addTab(clone_tool, "Clone Tool")
+    except NameError:
+        print("CloneTool not found in namespace.")
+
+    # 2. Test ControlPoint
+    try:
+        cp_tool = ControlPoint(test_image.copy())
+        tabs.addTab(cp_tool, "Control Points")
+    except NameError:
+        print("ControlPoint not found in namespace.")
+
+    # 3. Test Enhance
+    try:
+        base_viewer = ImageViewer(test_image.copy())
+        enhance_tool = Enhance(base_viewer)
+        tabs.addTab(enhance_tool, "Enhance")
+    except (NameError, ImportError):
+        print("Enhance or ImageViewer not found in namespace.")
+
+    # 4. Test DrawPolyMask
+    try:
+        poly_tool = DrawPolyMask(test_image.copy())
+        tabs.addTab(poly_tool, "Poly Mask")
+    except NameError:
+        print("DrawPolyMask not found in namespace.")
+
+    # 5. Test FishInfo
+    try:
+        fish_tool = FishInfo(test_image.copy())
+        tabs.addTab(fish_tool, "Fish Info")
+    except NameError:
+        print("FishInfo not found in namespace.")
+
+    main_window.show()
+    
+    # Execute the app
+    sys.exit(app.exec_())

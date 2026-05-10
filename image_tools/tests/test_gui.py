@@ -1,11 +1,15 @@
-from image_tools import CloneTool
-from PyQt5.QtWidgets import QApplication
+import sys
 import numpy as np
+from qtpy.QtWidgets import QApplication
+from image_tools import CloneTool 
 
-#image = 255*np.ones((512,512,3), dtype=np.uint8)
-image = np.load('/media/martin/DATA/Mecp2/processed/2024_09_25_04_MeCP2_fish1_chunk_001.npy')
+image = np.load('/media/martin/DATA/Mecp2/processed/2024_09_25_04_MeCP2_fish1_chunk_001.npy') 
 
-app = QApplication([])
-window = CloneTool(image)
-window.show()
-app.exec()
+def main():
+    app = QApplication(sys.argv) 
+    window = CloneTool(image) 
+    window.show() 
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
