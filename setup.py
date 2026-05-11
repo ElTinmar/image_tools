@@ -16,7 +16,7 @@ setup(
         "pyqtgraph",
         "opencv-python-headless",
         "scikit-image",
-        "geometry @ git+https://github.com/ElTinmar/geometry.git@main",
-        "qt_widgets @ git+https://github.com/ElTinmar/qt_widgets.git@main"
+        "geometry @ git+https://github.com/ElTinmar/geometry.git@v0.3.0",
+        "qt_widgets @ git+https://github.com/ElTinmar/qt_widgets.git@v0.5.0"
     ]
 )
