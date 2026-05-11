@@ -13,7 +13,7 @@ dependencies:
   - scikit-learn
   - pyqtgraph
   - pip:
-    - git+https://github.com/ElTinmar/qt_widgets.git@main
-    - git+https://github.com/ElTinmar/geometry.git@main
+    - git+https://github.com/ElTinmar/qt_widgets.git@v0.5.0
+    - git+https://github.com/ElTinmar/geometry.git@v0.3.0
     - pytest
     - pytest-benchmark
