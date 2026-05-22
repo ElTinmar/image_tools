@@ -4,7 +4,7 @@ setup(
     name='image_tools',
     python_requires='>=3.7',
     author='Martin Privat',
-    version='0.9.3',
+    version='0.9.4',
     packages=['image_tools','image_tools.tests'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='image processing functions',
@@ -17,6 +17,6 @@ setup(
         "opencv-python-headless",
         "scikit-image",
         "geometry @ git+https://github.com/ElTinmar/geometry.git@v0.3.0",
-        "qt_widgets @ git+https://github.com/ElTinmar/qt_widgets.git@v0.5.0"
+        "qt_widgets @ git+https://github.com/ElTinmar/qt_widgets.git@v0.5.1"
     ]
 )
