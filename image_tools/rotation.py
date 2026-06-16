@@ -87,3 +87,42 @@ def imrotate(image: NDArray, cx: float, cy: float, angle_deg: float) -> Tuple[ND
 
     return rotated_image, new_coords
     
+def imrotate2(image: NDArray, cx: float, cy: float, angle_deg: float) -> Tuple[NDArray, NDArray]:
+    # TODO test this
+    
+    h, w = image.shape[:2]
+    angle_deg = angle_deg % 360
+
+    if angle_deg in (90, 180, 270):
+        if angle_deg == 90:
+            rotated_image = np.rot90(image, 1)
+            new_coords = np.array([cy, w - 1 - cx])
+        elif angle_deg == 180:
+            rotated_image = np.rot90(image, 2)
+            new_coords = np.array([w - 1 - cx, h - 1 - cy])
+        elif angle_deg == 270:
+            rotated_image = np.rot90(image, 3)
+            new_coords = np.array([h - 1 - cy, cx])
+        return rotated_image, new_coords
+
+    # compute bounding box after rotation
+    imrect = Rect(cx, cy, w, h)
+    bb = bounding_box_after_rot(imrect, angle_deg)
+
+    # rotate and translate image
+    T0 = translation_matrix(-cx, -cy)
+    R = rotation_matrix(angle_deg)
+    T1 = translation_matrix(cx, cy)
+    T2 = translation_matrix(-bb.left, -bb.bottom)
+    warp_mat = T2 @ np.linalg.inv(T1 @ R @ T0)
+    rotated_image = cv2.warpAffine(
+        image, 
+        warp_mat[:2,:], 
+        (bb.width, bb.height), 
+        flags=cv2.INTER_NEAREST
+    )
+    
+    # new coordinates of the center of rotation
+    new_coords = np.array((cx - bb.left, cy - bb.bottom))
+
+    return rotated_image, new_coords
