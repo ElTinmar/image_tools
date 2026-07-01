@@ -323,7 +323,7 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cx = 0.0
         self._bbox_cy = 0.0
 
-    def get_data(self):
+    def get_data(self) -> dict:
         bbox_tl_scene_pos = self.mapToScene(self.bbox_tl.pos())
     
         x = bbox_tl_scene_pos.x()
@@ -459,7 +459,7 @@ class MultiCoordViewer(QGraphicsView):
     def notify_system_changed(self, system: InteractiveCoordinateSystem):
         self.system_updated.emit(system.get_data())
 
-    def get_data(self):
+    def get_data(self) -> dict:
         data = {}
         for idx, sys_item in enumerate(self.coordinate_systems):
             data[idx] = sys_item.get_data()
