@@ -1,10 +1,12 @@
 import sys
 import math
+from numpy.typing import NDArray
 from qtpy.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                             QWidget, QLabel, QGraphicsItem, QGraphicsView, 
                             QGraphicsScene, QFrame, QPushButton, QListWidget, QFileDialog)
 from qtpy.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPainterPathStroker, QPixmap, QFont, QMouseEvent
 from qtpy.QtCore import Qt, QRectF, QPointF, Signal as pyqtSignal
+from qt_widgets import NDarray_to_QPixmap
 
 
 class BaseSystemHandle(QGraphicsItem):
@@ -144,8 +146,8 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemSendsGeometryChanges)
         self.setPos(initial_pos)
 
-        self._len_x = 75.0
-        self._len_y = 150.0
+        self._len_lateral = 75.0
+        self._len_heading = 150.0
         self._current_angle = 0.0
 
         self._bbox_w = 200.0
@@ -154,16 +156,16 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cy = 0.0
 
         self.color_origin = QColor(255, 255, 255, 180) 
-        self.color_x = QColor(230, 159, 0)        
-        self.color_y = QColor(86, 180, 233)       
+        self.color_lateral = QColor(230, 159, 0)        
+        self.color_heading = QColor(86, 180, 233)       
         self.color_bbox = QColor(255, 255, 255, 160)
 
         # Child handles initialization
         self.origin = OriginHandle(self.color_origin, parent=self)
         self.origin.setPos(0, 0)
 
-        self.axis_x = AxisHandle(self.color_x, parent=self)
-        self.axis_y = AxisHandle(self.color_y, parent=self)
+        self.axis_lateral = AxisHandle(self.color_lateral, parent=self)
+        self.axis_heading = AxisHandle(self.color_heading, parent=self)
         
         self.bbox_tl = BBoxCornerHandle(self.color_bbox, "tl", parent=self)
         self.bbox_tr = BBoxCornerHandle(self.color_bbox, "tr", parent=self)
@@ -176,8 +178,8 @@ class InteractiveCoordinateSystem(QGraphicsItem):
     def set_axes_visible(self, visible: bool):
         self.prepareGeometryChange()
         self.axes_visible = visible
-        self.axis_x.setVisible(visible)
-        self.axis_y.setVisible(visible)
+        self.axis_lateral.setVisible(visible)
+        self.axis_heading.setVisible(visible)
 
         if not self.axes_visible:
             # Shift the coordinate pivot system directly onto the physical box layout center coordinates
@@ -190,14 +192,14 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self.update()
 
     def update_axis_positions(self):
-        x_target = QPointF(math.cos(self._current_angle) * self._len_x, 
-                           math.sin(self._current_angle) * self._len_x)
-        self.axis_x.setPos(x_target)
+        x_target = QPointF(math.cos(self._current_angle) * self._len_lateral, 
+                           math.sin(self._current_angle) * self._len_lateral)
+        self.axis_lateral.setPos(x_target)
         
         y_angle = self._current_angle - (math.pi / 2.0)
-        y_target = QPointF(math.cos(y_angle) * self._len_y, 
-                           math.sin(y_angle) * self._len_y)
-        self.axis_y.setPos(y_target)
+        y_target = QPointF(math.cos(y_angle) * self._len_heading, 
+                           math.sin(y_angle) * self._len_heading)
+        self.axis_heading.setPos(y_target)
 
     def update_bbox_positions(self):
         hw, hh = self._bbox_w / 2.0, self._bbox_h / 2.0
@@ -215,16 +217,16 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         bbox = self.get_bbox_rect()
         if not self.axes_visible:
             return bbox.united(self.origin.boundingRect()).adjusted(-15, -15, 15, 15)
-        axes_rect = QRectF(self.origin.pos(), self.axis_x.pos()).united(QRectF(self.origin.pos(), self.axis_y.pos()))
+        axes_rect = QRectF(self.origin.pos(), self.axis_lateral.pos()).united(QRectF(self.origin.pos(), self.axis_heading.pos()))
         return bbox.united(axes_rect).adjusted(-35, -20, 20, 35)
 
     def shape(self):
         path = QPainterPath()
         if self.axes_visible:
             path.moveTo(self.origin.pos())
-            path.lineTo(self.axis_x.pos())
+            path.lineTo(self.axis_lateral.pos())
             path.moveTo(self.origin.pos())
-            path.lineTo(self.axis_y.pos())
+            path.lineTo(self.axis_heading.pos())
         path.addRect(self.get_bbox_rect())
         
         stroker = QPainterPathStroker()
@@ -234,8 +236,8 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         
         total_shape.addPath(self.origin.mapToParent(self.origin.shape()))
         if self.axes_visible:
-            total_shape.addPath(self.axis_x.mapToParent(self.axis_x.shape()))
-            total_shape.addPath(self.axis_y.mapToParent(self.axis_y.shape()))
+            total_shape.addPath(self.axis_lateral.mapToParent(self.axis_lateral.shape()))
+            total_shape.addPath(self.axis_heading.mapToParent(self.axis_heading.shape()))
             
         total_shape.addPath(self.bbox_tl.mapToParent(self.bbox_tl.shape()))
         total_shape.addPath(self.bbox_tr.mapToParent(self.bbox_tr.shape()))
@@ -251,11 +253,11 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         painter.drawRect(self.get_bbox_rect())
 
         if self.axes_visible:
-            painter.setPen(QPen(QColor(self.color_x.red(), self.color_x.green(), self.color_x.blue(), 230), 3.0))
-            painter.drawLine(self.origin.pos(), self.axis_x.pos())
+            painter.setPen(QPen(QColor(self.color_lateral.red(), self.color_lateral.green(), self.color_lateral.blue(), 230), 3.0))
+            painter.drawLine(self.origin.pos(), self.axis_lateral.pos())
             
-            painter.setPen(QPen(QColor(self.color_y.red(), self.color_y.green(), self.color_y.blue(), 230), 3.0))
-            painter.drawLine(self.origin.pos(), self.axis_y.pos())
+            painter.setPen(QPen(QColor(self.color_heading.red(), self.color_heading.green(), self.color_heading.blue(), 230), 3.0))
+            painter.drawLine(self.origin.pos(), self.axis_heading.pos())
 
         label = str(self.index)
         font = QFont("Arial", 12, QFont.Bold)
@@ -274,9 +276,9 @@ class InteractiveCoordinateSystem(QGraphicsItem):
     def handle_axis_drag(self, node, local_mouse_pos):
         self.prepareGeometryChange()
         dx, dy = local_mouse_pos.x(), local_mouse_pos.y()
-        if node == self.axis_x:
+        if node == self.axis_lateral:
             self._current_angle = math.atan2(dy, dx)
-        elif node == self.axis_y:
+        elif node == self.axis_heading:
             self._current_angle = math.atan2(dy, dx) + (math.pi / 2.0)
         self.update_axis_positions()
         self.update()
@@ -322,21 +324,53 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cy = 0.0
 
     def get_data(self):
-        origin_scene_pos = self.mapToScene(self.origin.pos())
-        dy = self.axis_y.pos().y() - self.origin.pos().y()
-        dx = self.axis_y.pos().x() - self.origin.pos().x()
+        bbox_tl_scene_pos = self.mapToScene(self.bbox_tl.pos())
+    
+        x = bbox_tl_scene_pos.x()
+        y = bbox_tl_scene_pos.y()
+        w = self._bbox_w
+        h = self._bbox_h
+
+        heading_y = self.axis_heading.y() - self.origin.y()
+        heading_x = self.axis_heading.x() - self.origin.x()
+        lateral_y = self.axis_lateral.y() - self.origin.y()
+        lateral_x = self.axis_lateral.x() - self.origin.x()
+
+        offset_x = -self.bbox_tl.x()
+        offset_y = -self.bbox_tl.y()
+
         return {
-            "index": self.index,
-            "origin_x": origin_scene_pos.x(),
-            "origin_y": origin_scene_pos.y(),
-            "y_axis_angle_deg": math.degrees(math.atan2(dy, dx)),
-            "scale_x_len": self._len_x,
-            "scale_y_len": self._len_y,
-            "bbox_width": self._bbox_w,
-            "bbox_height": self._bbox_h,
-            "bbox_offset_x": self._bbox_cx,
-            "bbox_offset_y": self._bbox_cy
+            "bbox_rect": [x, y, w, h],
+            "centroid": [offset_x, offset_y],
+            "axes": [
+                [heading_x/self._len_heading, lateral_x/self._len_lateral],
+                [heading_y/self._len_heading, lateral_y/self._len_lateral]
+            ]
         }
+    
+    def set_data(self, data: dict):
+        self.prepareGeometryChange()
+        
+        x, y, w, h = data["bbox_rect"]
+        offset_x, offset_y = data["centroid"]
+        
+        self._bbox_w = w
+        self._bbox_h = h
+        
+        hw, hh = w / 2.0, h / 2.0
+        self._bbox_cx = hw - offset_x
+        self._bbox_cy = hh - offset_y
+        
+        self.setPos(QPointF(x + offset_x, y + offset_y))
+        
+        axes = data["axes"]
+        lateral_x_norm = axes[0][1]
+        lateral_y_norm = axes[1][1]
+        self._current_angle = math.atan2(lateral_y_norm, lateral_x_norm)
+        
+        self.update_axis_positions()
+        self.update_bbox_positions()
+        self.update()
 
 
 class MultiCoordViewer(QGraphicsView):
@@ -360,6 +394,7 @@ class MultiCoordViewer(QGraphicsView):
         self._global_axes_visible = not self._global_axes_visible
         for sys_item in self.coordinate_systems:
             sys_item.set_axes_visible(self._global_axes_visible)
+            self.notify_system_changed(sys_item)
         return self._global_axes_visible
 
     def wheelEvent(self, event):
@@ -387,14 +422,13 @@ class MultiCoordViewer(QGraphicsView):
         else:
             super().mouseReleaseEvent(event)
 
-    def load_background_image(self, file_path: str):
-        pixmap = QPixmap(file_path)
-        if pixmap.isNull(): return False
-        if self.bg_pixmap_item in self.scene.items(): self.scene.removeItem(self.bg_pixmap_item)
+    def set_background_image(self, image: NDArray):
+        pixmap = NDarray_to_QPixmap(image)
+        if self.bg_pixmap_item in self.scene.items(): 
+            self.scene.removeItem(self.bg_pixmap_item)
         self.bg_pixmap_item = self.scene.addPixmap(pixmap)
         self.bg_pixmap_item.setZValue(-100)
         self.setSceneRect(QRectF(pixmap.rect()))
-        return True
 
     def add_coordinate_system(self, scene_pos: QPointF):
         index = len(self.coordinate_systems)
@@ -410,6 +444,11 @@ class MultiCoordViewer(QGraphicsView):
             self.scene.removeItem(item)
             self.reindex_systems()
 
+    def clear_coordinate_systems(self):
+        for sys_item in self.coordinate_systems:
+            self.scene.removeItem(sys_item)
+        self.coordinate_systems.clear()
+
     def reindex_systems(self):
         for idx, sys_item in enumerate(self.coordinate_systems):
             sys_item.index = idx
@@ -419,6 +458,34 @@ class MultiCoordViewer(QGraphicsView):
 
     def notify_system_changed(self, system: InteractiveCoordinateSystem):
         self.system_updated.emit(system.get_data())
+
+    def get_data(self):
+        data = {}
+        for idx, sys_item in enumerate(self.coordinate_systems):
+            data[idx] = sys_item.get_data()
+        return data
+    
+    def set_data(self, data: dict):
+        self.clear_coordinate_systems()
+        
+        for str_idx in sorted(data.keys(), key=int):
+            idx = int(str_idx)
+            item_data = data[str_idx]
+            
+            # Extract temporary scene position to instantiate the object
+            x, y, _, _ = item_data["bbox_rect"]
+            offset_x, offset_y = item_data["centroid"]
+            initial_pos = QPointF(x + offset_x, y + offset_y)
+            
+            # Create, configure, and add to tracking
+            coord_sys = InteractiveCoordinateSystem(idx, initial_pos, self)
+            coord_sys.set_axes_visible(self._global_axes_visible)
+            coord_sys.set_data(item_data)
+            
+            self.scene.addItem(coord_sys)
+            self.coordinate_systems.append(coord_sys)
+            
+        self.scene.update()
 
 
 class MainApplication(QMainWindow):
@@ -513,19 +580,13 @@ class MainApplication(QMainWindow):
 
     def update_telemetry_display(self, data: dict):
         text = (
-            f"SYSTEM INDEX: #{data['index']}\n"
-            f"---------------------------\n"
-            f"Origin X    : {data['origin_x']:.2f} px\n"
-            f"Origin Y    : {data['origin_y']:.2f} px\n"
-            f"Y-Axis ∠    : {data['y_axis_angle_deg']:.2f}°\n"
-            f"X length    : {data['scale_x_len']:.1f} px\n"
-            f"Y length    : {data['scale_y_len']:.1f} px\n"
-            f"BBox Size   : {data['bbox_width']:.1f} x {data['bbox_height']:.1f} px\n"
-            f"BBox Offset : [{data['bbox_offset_x']:.1f}, {data['bbox_offset_y']:.1f}] px\n"
+            f"BBox      : {data['bbox_rect']} px\n"
+            f"Centroid  : {data['centroid']} px\n"
+            f"Axes      : {data['axes']}\n"
             f"Navigation  : Wheel = Zoom | Middle-Click = Pan"
         )
         self.telemetry_label.setText(text)
-
+        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
