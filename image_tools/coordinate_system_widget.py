@@ -62,7 +62,6 @@ class BaseSystemHandle(QGraphicsItem):
         else:
             super().mousePressEvent(event)
 
-
 class OriginHandle(BaseSystemHandle):
     """Handle that controls full 2D coordinate system translation."""
     def __init__(self, color: QColor, parent=None):
@@ -147,45 +146,6 @@ class BBoxCornerHandle(BaseSystemHandle):
             parent.handle_bbox_resize(self, local_mouse_pos)
             event.accept()
 
-
-class BBoxBodyHandle(BaseSystemHandle):
-    """An invisible handle overlaid across the bounding box area to allow internal box panning."""
-    def __init__(self, color: QColor, parent=None):
-        super().__init__(color, size=0, interaction_margin=0, parent=parent)
-
-    def boundingRect(self):
-        return QRectF()
-
-    def shape(self):
-        return QPainterPath()
-
-    def paint(self, painter, option, widget):
-        pass 
-
-    def hoverEnterEvent(self, event):
-        self.setCursor(Qt.OpenHandCursor)
-        super().hoverEnterEvent(event)
-
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        if event.button() == Qt.LeftButton:
-            self.setCursor(Qt.ClosedHandCursor)
-
-    def mouseReleaseEvent(self, event):
-        self.setCursor(Qt.OpenHandCursor)
-        super().mouseReleaseEvent(event)
-
-    def mouseMoveEvent(self, event):
-        parent = self.parentItem()
-        if parent and event.buttons() & Qt.LeftButton:
-            current_local_mouse = parent.mapFromScene(event.scenePos())
-            local_delta = current_local_mouse - self._drag_start_local_mouse
-            new_cx = self._drag_start_bbox_center.x() + local_delta.x()
-            new_cy = self._drag_start_bbox_center.y() + local_delta.y()
-            parent.handle_bbox_translate(new_cx, new_cy)
-            event.accept()
-
-
 class InteractiveCoordinateSystem(QGraphicsItem):
     """
     Composite graphics framework item composing an Origin, an X-Axis, a Y-Axis, 
@@ -210,8 +170,8 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cy = 0.0
 
         self.color_origin = QColor(255, 255, 255, 120)
-        self.color_x = QColor(230, 159, 0, 210)        
-        self.color_y = QColor(86, 180, 233, 210)       
+        self.color_x = QColor(230, 159, 0)        
+        self.color_y = QColor(86, 180, 233)       
         self.color_bbox = QColor(255, 255, 255, 160)
 
         # Inherited Component Subclasses
@@ -225,8 +185,6 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self.bbox_tr = BBoxCornerHandle(self.color_bbox, "tr", parent=self)
         self.bbox_bl = BBoxCornerHandle(self.color_bbox, "bl", parent=self)
         self.bbox_br = BBoxCornerHandle(self.color_bbox, "br", parent=self)
-
-        self.bbox_body = BBoxBodyHandle(self.color_bbox, parent=self)
 
         self.update_axis_positions()
         self.update_bbox_positions()
