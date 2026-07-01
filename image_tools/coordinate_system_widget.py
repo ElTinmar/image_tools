@@ -8,7 +8,6 @@ from qtpy.QtCore import Qt, QRectF, QPointF, Signal as pyqtSignal
 
 
 class BaseSystemHandle(QGraphicsItem):
-    """Abstract base class for interactive coordinate handles."""
     def __init__(self, color: QColor, size: float, interaction_margin: float = 10.0, parent=None):
         super().__init__(parent)
         self.color = color
@@ -22,7 +21,6 @@ class BaseSystemHandle(QGraphicsItem):
         self._drag_start_scene = QPointF()
         self._drag_start_parent_pos = QPointF()
         self._drag_start_local_mouse = QPointF()
-        self._drag_start_bbox_center = QPointF()
 
     def boundingRect(self):
         s = self.size + self.interaction_margin
@@ -51,7 +49,6 @@ class BaseSystemHandle(QGraphicsItem):
             parent = self.parentItem()
             if parent:
                 self._drag_start_parent_pos = parent.pos()
-                self._drag_start_bbox_center = QPointF(parent._bbox_cx, parent._bbox_cy)
                 self._drag_start_local_mouse = parent.mapFromScene(event.scenePos())
             event.accept()
         else:
@@ -118,10 +115,7 @@ class BBoxCornerHandle(BaseSystemHandle):
         self.corner_id = corner_id
 
     def hoverEnterEvent(self, event):
-        if self.corner_id in ["tl", "br"]:
-            self.setCursor(Qt.SizeFDiagCursor)
-        else:
-            self.setCursor(Qt.SizeBDiagCursor)
+        self.setCursor(Qt.SizeFDiagCursor if self.corner_id in ["tl", "br"] else Qt.SizeBDiagCursor)
         super().hoverEnterEvent(event)
 
     def paint(self, painter, option, widget):
@@ -143,10 +137,11 @@ class BBoxCornerHandle(BaseSystemHandle):
 class InteractiveCoordinateSystem(QGraphicsItem):
     def __init__(self, index: int, initial_pos: QPointF, parent_widget):
         super().__init__()
-        self.index: int = index  # Strict integer identification type
+        self.index: int = index  
         self.parent_widget = parent_widget
+        self.axes_visible: bool = True  
         
-        self.setFlags(QGraphicsItem.ItemIsSelectable)
+        self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemSendsGeometryChanges)
         self.setPos(initial_pos)
 
         self._len_x = 75.0
@@ -158,11 +153,12 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cx = 0.0
         self._bbox_cy = 0.0
 
-        self.color_origin = QColor(255, 255, 255, 120)
+        self.color_origin = QColor(255, 255, 255, 180) 
         self.color_x = QColor(230, 159, 0)        
         self.color_y = QColor(86, 180, 233)       
         self.color_bbox = QColor(255, 255, 255, 160)
 
+        # Child handles initialization
         self.origin = OriginHandle(self.color_origin, parent=self)
         self.origin.setPos(0, 0)
 
@@ -176,6 +172,22 @@ class InteractiveCoordinateSystem(QGraphicsItem):
 
         self.update_axis_positions()
         self.update_bbox_positions()
+
+    def set_axes_visible(self, visible: bool):
+        self.prepareGeometryChange()
+        self.axes_visible = visible
+        self.axis_x.setVisible(visible)
+        self.axis_y.setVisible(visible)
+
+        if not self.axes_visible:
+            # Shift the coordinate pivot system directly onto the physical box layout center coordinates
+            scene_center = self.mapToScene(QPointF(self._bbox_cx, self._bbox_cy))
+            self.setPos(scene_center)
+            self._bbox_cx = 0.0
+            self._bbox_cy = 0.0
+            
+        self.update_bbox_positions()
+        self.update()
 
     def update_axis_positions(self):
         x_target = QPointF(math.cos(self._current_angle) * self._len_x, 
@@ -201,25 +213,30 @@ class InteractiveCoordinateSystem(QGraphicsItem):
 
     def boundingRect(self):
         bbox = self.get_bbox_rect()
+        if not self.axes_visible:
+            return bbox.united(self.origin.boundingRect()).adjusted(-15, -15, 15, 15)
         axes_rect = QRectF(self.origin.pos(), self.axis_x.pos()).united(QRectF(self.origin.pos(), self.axis_y.pos()))
         return bbox.united(axes_rect).adjusted(-35, -20, 20, 35)
 
     def shape(self):
         path = QPainterPath()
-        path.moveTo(self.origin.pos())
-        path.lineTo(self.axis_x.pos())
-        path.moveTo(self.origin.pos())
-        path.lineTo(self.axis_y.pos())
+        if self.axes_visible:
+            path.moveTo(self.origin.pos())
+            path.lineTo(self.axis_x.pos())
+            path.moveTo(self.origin.pos())
+            path.lineTo(self.axis_y.pos())
         path.addRect(self.get_bbox_rect())
         
         stroker = QPainterPathStroker()
         stroker.setWidth(16)
         stroker.setCapStyle(Qt.RoundCap)
-        
         total_shape = stroker.createStroke(path)
+        
         total_shape.addPath(self.origin.mapToParent(self.origin.shape()))
-        total_shape.addPath(self.axis_x.mapToParent(self.axis_x.shape()))
-        total_shape.addPath(self.axis_y.mapToParent(self.axis_y.shape()))
+        if self.axes_visible:
+            total_shape.addPath(self.axis_x.mapToParent(self.axis_x.shape()))
+            total_shape.addPath(self.axis_y.mapToParent(self.axis_y.shape()))
+            
         total_shape.addPath(self.bbox_tl.mapToParent(self.bbox_tl.shape()))
         total_shape.addPath(self.bbox_tr.mapToParent(self.bbox_tr.shape()))
         total_shape.addPath(self.bbox_bl.mapToParent(self.bbox_bl.shape()))
@@ -233,23 +250,26 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(self.get_bbox_rect())
 
-        painter.setPen(QPen(QColor(self.color_x.red(), self.color_x.green(), self.color_x.blue(), 230), 3.0))
-        painter.drawLine(self.origin.pos(), self.axis_x.pos())
-        
-        painter.setPen(QPen(QColor(self.color_y.red(), self.color_y.green(), self.color_y.blue(), 230), 3.0))
-        painter.drawLine(self.origin.pos(), self.axis_y.pos())
+        if self.axes_visible:
+            painter.setPen(QPen(QColor(self.color_x.red(), self.color_x.green(), self.color_x.blue(), 230), 3.0))
+            painter.drawLine(self.origin.pos(), self.axis_x.pos())
+            
+            painter.setPen(QPen(QColor(self.color_y.red(), self.color_y.green(), self.color_y.blue(), 230), 3.0))
+            painter.drawLine(self.origin.pos(), self.axis_y.pos())
 
-        # Explicit conversion to string for interface painting text
         label = str(self.index)
         font = QFont("Arial", 12, QFont.Bold)
         painter.setFont(font)
         
+        rect_offset = QRectF(-24, 10, 20, 20) if self.axes_visible else QRectF(self._bbox_cx - (self._bbox_w/2.0) + 5, self._bbox_cy - (self._bbox_h/2.0) + 5, 20, 20)
+        align_flags = (Qt.AlignRight | Qt.AlignTop) if self.axes_visible else (Qt.AlignLeft | Qt.AlignTop)
+
         painter.setPen(QColor(0, 0, 0, 255))
-        painter.drawText(QRectF(-23, 11, 20, 20), Qt.AlignRight | Qt.AlignTop, label)
-        painter.drawText(QRectF(-25, 9, 20, 20), Qt.AlignRight | Qt.AlignTop, label)
+        painter.drawText(rect_offset.translated(1, 1), align_flags, label)
+        painter.drawText(rect_offset.translated(-1, -1), align_flags, label)
 
         painter.setPen(QColor(255, 255, 255, 240))
-        painter.drawText(QRectF(-24, 10, 20, 20), Qt.AlignRight | Qt.AlignTop, label)
+        painter.drawText(rect_offset, align_flags, label)
 
     def handle_axis_drag(self, node, local_mouse_pos):
         self.prepareGeometryChange()
@@ -264,6 +284,18 @@ class InteractiveCoordinateSystem(QGraphicsItem):
 
     def handle_bbox_resize(self, node, local_mouse_pos):
         self.prepareGeometryChange()
+        
+        if self.axes_visible:
+            self._resize_asymmetric(node, local_mouse_pos)
+        else:
+            self._resize_symmetric(local_mouse_pos)
+
+        self.update_bbox_positions()
+        self.update()
+        self.parent_widget.notify_system_changed(self)
+
+    def _resize_asymmetric(self, node, local_mouse_pos):
+        """Mode A: Bounding box adjusts freely around a static origin local coordinate point."""
         hw, hh = self._bbox_w / 2.0, self._bbox_h / 2.0
         x1, x2 = self._bbox_cx - hw, self._bbox_cx + hw  
         y1, y2 = self._bbox_cy - hh, self._bbox_cy + hh  
@@ -282,9 +314,12 @@ class InteractiveCoordinateSystem(QGraphicsItem):
         self._bbox_cx = x1 + self._bbox_w / 2.0
         self._bbox_cy = y1 + self._bbox_h / 2.0
 
-        self.update_bbox_positions()
-        self.update()
-        self.parent_widget.notify_system_changed(self)
+    def _resize_symmetric(self, local_mouse_pos):
+        """Mode B: Pure uniform resize anchored strictly to the lock center point (0,0)."""
+        self._bbox_w = max(20.0, abs(local_mouse_pos.x()) * 2.0)
+        self._bbox_h = max(20.0, abs(local_mouse_pos.y()) * 2.0)
+        self._bbox_cx = 0.0
+        self._bbox_cy = 0.0
 
     def get_data(self):
         origin_scene_pos = self.mapToScene(self.origin.pos())
@@ -319,6 +354,13 @@ class MultiCoordViewer(QGraphicsView):
         
         self.coordinate_systems = [] 
         self.bg_pixmap_item = None
+        self._global_axes_visible = True
+
+    def toggle_axes_visibility(self):
+        self._global_axes_visible = not self._global_axes_visible
+        for sys_item in self.coordinate_systems:
+            sys_item.set_axes_visible(self._global_axes_visible)
+        return self._global_axes_visible
 
     def wheelEvent(self, event):
         zoom_in_factor = 1.15
@@ -357,19 +399,18 @@ class MultiCoordViewer(QGraphicsView):
     def add_coordinate_system(self, scene_pos: QPointF):
         index = len(self.coordinate_systems)
         coord_sys = InteractiveCoordinateSystem(index, scene_pos, self)
+        coord_sys.set_axes_visible(self._global_axes_visible)
         self.scene.addItem(coord_sys)
         self.coordinate_systems.append(coord_sys)
         self.notify_system_changed(coord_sys)
 
     def remove_coordinate_system(self, index: int):
-        """Fixed: Corrected argument type hint to int."""
         if 0 <= index < len(self.coordinate_systems):
             item = self.coordinate_systems.pop(index)
             self.scene.removeItem(item)
             self.reindex_systems()
 
     def reindex_systems(self):
-        """Reassigns sequential integer indices cleanly after deletions."""
         for idx, sys_item in enumerate(self.coordinate_systems):
             sys_item.index = idx
             sys_item.update() 
@@ -405,8 +446,15 @@ class MainApplication(QMainWindow):
         control_layout.addWidget(self.load_img_btn)
         
         control_layout.addSpacing(10)
+
+        self.toggle_axes_btn = QPushButton("👁️ Toggle Coordinate Axes: ON")
+        self.toggle_axes_btn.setStyleSheet("font-weight: bold; background-color: #2ca02c; color: white; padding: 5px;")
+        self.toggle_axes_btn.clicked.connect(self.fire_axes_toggle)
+        control_layout.addWidget(self.toggle_axes_btn)
         
-        self.add_btn = QPushButton("Add Coordinate System")
+        control_layout.addSpacing(5)
+        
+        self.add_btn = QPushButton("Add Bounding Box Set")
         self.add_btn.clicked.connect(self.spawn_system)
         control_layout.addWidget(self.add_btn)
         
@@ -433,6 +481,15 @@ class MainApplication(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Background Image Asset", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if file_path: self.viewer.load_background_image(file_path)
 
+    def fire_axes_toggle(self):
+        is_visible = self.viewer.toggle_axes_visibility()
+        if is_visible:
+            self.toggle_axes_btn.setText("👁️ Toggle Coordinate Axes: ON")
+            self.toggle_axes_btn.setStyleSheet("font-weight: bold; background-color: #2ca02c; color: white; padding: 5px;")
+        else:
+            self.toggle_axes_btn.setText("🙈 Toggle Coordinate Axes: OFF")
+            self.toggle_axes_btn.setStyleSheet("font-weight: bold; background-color: #d62728; color: white; padding: 5px;")
+
     def spawn_system(self):
         center_view = self.viewer.viewport().rect().center()
         scene_pt = self.viewer.mapToScene(center_view)
@@ -452,11 +509,9 @@ class MainApplication(QMainWindow):
     def refresh_list_widget(self):
         self.system_list.clear()
         for sys_item in self.viewer.coordinate_systems:
-            # Explicit formatting string layout conversion
-            self.system_list.addItem(f"Coordinate System #{sys_item.index}")
+            self.system_list.addItem(f"Bounding Box Set #{sys_item.index}")
 
     def update_telemetry_display(self, data: dict):
-        # Explicit construction for text output
         text = (
             f"SYSTEM INDEX: #{data['index']}\n"
             f"---------------------------\n"
